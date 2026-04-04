@@ -550,15 +550,25 @@ function renderTimelineChart() {
     const ctx = document.getElementById('timelineChart');
     if (!ctx) return;
 
-    // Group by date
-    const byDate = {};
+    // Only include leads from the last 90 days with a valid date
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+    // Group by ISO week (Mon-Sun) for a cleaner, normalized view
+    const byWeek = {};
     allLeads.forEach(l => {
         const d = l.permit_date ? l.permit_date.slice(0, 10) : null;
-        if (d) byDate[d] = (byDate[d] || 0) + 1;
+        if (!d || d < cutoffStr) return;
+        const weekStart = getWeekStart(d);
+        byWeek[weekStart] = (byWeek[weekStart] || 0) + 1;
     });
 
-    const sorted = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]));
-    const labels = sorted.map(([d]) => d);
+    const sorted = Object.entries(byWeek).sort((a, b) => a[0].localeCompare(b[0]));
+    const labels = sorted.map(([d]) => {
+        const dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    });
     const data = sorted.map(([, c]) => c);
     const colors = getChartColors();
 
@@ -568,7 +578,7 @@ function renderTimelineChart() {
         data: {
             labels,
             datasets: [{
-                label: 'Leads',
+                label: 'Leads / week',
                 data,
                 backgroundColor: 'rgba(5, 150, 105, 0.6)',
                 borderColor: '#059669',
@@ -578,13 +588,30 @@ function renderTimelineChart() {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: (items) => `Week of ${sorted[items[0].dataIndex][0]}`,
+                        label: (item) => `${item.raw} leads`,
+                    },
+                },
+            },
             scales: {
-                x: { ticks: { color: colors.text, maxTicksLimit: 10, font: { size: 10 } }, grid: { display: false } },
-                y: { ticks: { color: colors.text, font: { size: 10 } }, grid: { color: colors.grid } },
+                x: { ticks: { color: colors.text, maxTicksLimit: 13, font: { size: 10 } }, grid: { display: false } },
+                y: { beginAtZero: true, ticks: { color: colors.text, font: { size: 10 }, precision: 0 }, grid: { color: colors.grid } },
             },
         },
     });
+}
+
+/** Return the Monday (ISO week start) for a given YYYY-MM-DD string. */
+function getWeekStart(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();          // 0=Sun … 6=Sat
+    const diff = (day === 0 ? 6 : day - 1); // offset to Monday
+    d.setDate(d.getDate() - diff);
+    return d.toISOString().slice(0, 10);
 }
 
 function renderSourcesChart() {
