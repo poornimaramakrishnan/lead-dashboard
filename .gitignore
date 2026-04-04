@@ -40,7 +40,7 @@ coverage.xml
 *.log
 
 # Node (dashboard)
-lead-dashboard/node_modules/
+node_modules/
 
 # Private — pipeline, tests, docs kept in private repo only
 pipeline/
@@ -49,6 +49,4 @@ tests/
 .env.example
 pyproject.toml
 requirements.txt
-README.md
 *.docx
-*.md
