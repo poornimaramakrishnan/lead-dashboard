@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock, call
 
-from pipeline.workers.derm import parse_derm_record, run_derm_worker, decode_file_id, SOURCE_NAME as DERM_SOURCE
+from pipeline.workers.derm import parse_derm_record, run_derm_worker, decode_file_id, decode_work_group_number, SOURCE_NAME as DERM_SOURCE
 from pipeline.workers.fort_lauderdale import (
     parse_fl_record,
     run_fort_lauderdale_worker,
@@ -88,6 +88,55 @@ class TestDecodeFileId:
         assert dt.month == 3
         assert dt.day == 4
 
+    def test_future_date_old_format_returns_none(self):
+        """Old-format FILE_ID that decodes to a future year should return None."""
+        # 2099-01-01 in YYYYMMDD format → future date
+        dt = decode_file_id(2099010100000000)
+        assert dt is None
+
+    def test_future_date_epoch_ms_returns_none(self):
+        """Epoch-ms FILE_ID that decodes to a future date (e.g. 2027) → None."""
+        # 1805613473886044 → first 13 digits = 1805613473886 → 2027-03-21 (future)
+        dt = decode_file_id(1805613473886044)
+        assert dt is None
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  DERM Worker – decode_work_group_number
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestDecodeWorkGroupNumber:
+    """Tests for the WORK_GROUP_NUMBER year-proxy decoder."""
+
+    def test_2026_prefix(self):
+        """WGN starting with 26 → year 2026-01-01."""
+        dt = decode_work_group_number(2600309)
+        assert dt is not None
+        assert dt.year == 2026
+        assert dt.month == 1
+        assert dt.day == 1
+
+    def test_2025_prefix(self):
+        dt = decode_work_group_number(2501346)
+        assert dt is not None
+        assert dt.year == 2025
+
+    def test_2024_prefix(self):
+        dt = decode_work_group_number(2401200)
+        assert dt is not None
+        assert dt.year == 2024
+
+    def test_none_returns_none(self):
+        assert decode_work_group_number(None) is None
+
+    def test_too_old_year_returns_none(self):
+        """WGN that maps to year < 2015 should return None."""
+        assert decode_work_group_number(14001) is None
+
+    def test_too_future_year_returns_none(self):
+        """WGN that maps to year > 2030 should return None."""
+        assert decode_work_group_number(3100001) is None
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  DERM Worker – parse_derm_record
@@ -140,11 +189,28 @@ class TestParseDermRecord:
         assert lead["_filing_date"].month == 3
 
     def test_missing_file_id_gives_none_date(self):
-        """Records without FILE_ID get permit_date=None."""
-        attrs = {"PERMIT_NUMBER": "X", "PERMIT_TITLE": "T"}
+        """Records without FILE_ID and without WORK_GROUP_NUMBER get permit_date=None."""
+        attrs = {"PERMIT_NUMBER": "X", "PERMIT_TITLE": "T", "WORK_GROUP_NUMBER": None}
         lead = parse_derm_record(attrs)
         assert lead["permit_date"] is None
         assert lead["_filing_date"] is None
+
+    def test_future_file_id_falls_back_to_work_group_number(self):
+        """When FILE_ID decodes to a future date, WORK_GROUP_NUMBER year is used."""
+        # FILE_ID 1805613473886044 decodes to ~2027-03-21 (future) → rejected
+        # WORK_GROUP_NUMBER 2600309 → year 2026 → 2026-01-01
+        attrs = {
+            "PERMIT_NUMBER": "TREE-02600309",
+            "PERMIT_TITLE": "TREE Permit",
+            "PERMIT_STATUS_DESCRIPTION": "NEW APPLICATION",
+            "FACILITY_ADDRESS": "100 SW 5TH ST",
+            "FILE_ID": 1805613473886044,
+            "WORK_GROUP_NUMBER": 2600309,
+        }
+        lead = parse_derm_record(attrs)
+        assert lead["permit_date"] == "2026-01-01"
+        assert lead["_filing_date"] is not None
+        assert lead["_filing_date"].year == 2026
 
     def test_missing_fields_handled_gracefully(self):
         """All-None attributes shouldn't crash."""

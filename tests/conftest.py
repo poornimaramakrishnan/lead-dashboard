@@ -38,6 +38,7 @@ def sample_derm_attributes():
     return {
         "ObjectId": 12345,
         "FILE_ID": 2026031510000000,
+        "WORK_GROUP_NUMBER": 2600123,
         "PERMIT_NUMBER": "DERM-2025-00123",
         "WORK_GROUP": "TREE",
         "FACILITY_NAME": "JOHN DOE",

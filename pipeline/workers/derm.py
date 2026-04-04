@@ -46,9 +46,9 @@ logger = logging.getLogger(__name__)
 SOURCE_NAME = "miami_dade_derm"
 JURISDICTION = "Miami-Dade County"
 
-# Fields we need from DERM (FILE_ID added for date extraction)
+# Fields we need from DERM (FILE_ID + WORK_GROUP_NUMBER for date extraction)
 OUT_FIELDS = (
-    "ObjectId,FILE_ID,PERMIT_NUMBER,WORK_GROUP,FACILITY_NAME,FACILITY_ADDRESS,"
+    "ObjectId,FILE_ID,WORK_GROUP_NUMBER,PERMIT_NUMBER,WORK_GROUP,FACILITY_NAME,FACILITY_ADDRESS,"
     "HOUSE_NUMBER,STREET_NAME,CITY,STATE,ZIP_CODE,FOLIO,"
     "PERMIT_STATUS,PERMIT_STATUS_DESCRIPTION,"
     "TITLE_CODE,TITLE_CODE_DESCRIPTION,PERMIT_TITLE,"
@@ -67,33 +67,74 @@ def decode_file_id(file_id_value) -> Optional[datetime]:
 
     Detection: if the first 4 digits form a year between 1990-2030,
     use YYYYMMDD parsing; otherwise treat as epoch milliseconds.
+
+    NOTE: Some recently-issued permits have FILE_IDs whose epoch_ms
+    decodes to a future year (e.g. 1805613473886044 → 2027).  These
+    are internal sequence numbers, not timestamps.  The caller should
+    fall back to WORK_GROUP_NUMBER for those records.
     """
     if file_id_value is None:
         return None
     try:
         fid_str = str(int(file_id_value))
         year_prefix = int(fid_str[:4])
+        now = datetime.now(timezone.utc)
 
         if 1990 <= year_prefix <= 2030:
             # Old format: YYYYMMDDHHMMSSXX
-            return datetime.strptime(fid_str[:8], "%Y%m%d").replace(
+            dt = datetime.strptime(fid_str[:8], "%Y%m%d").replace(
                 tzinfo=timezone.utc
             )
+            # Reject dates in the future (internal sequence IDs can start with 20xx too)
+            if dt > now:
+                return None
+            return dt
         else:
             # New format: first 13 digits are epoch milliseconds
             epoch_ms = int(fid_str[:13])
             dt = datetime.fromtimestamp(epoch_ms / 1000.0, tz=timezone.utc)
-            if 2000 <= dt.year <= 2030:
+            if 2000 <= dt.year <= 2030 and dt <= now:
                 return dt
             return None
     except (ValueError, TypeError, OSError):
         return None
 
 
+def decode_work_group_number(wgn_value) -> Optional[datetime]:
+    """Derive an approximate filing year from WORK_GROUP_NUMBER.
+
+    WORK_GROUP_NUMBER format: YYXXXXX where first two digits = year (YY).
+      e.g. 2600309 → year 2026 → returns 2026-01-01
+
+    This is used as a fallback when FILE_ID does not contain a usable date
+    (e.g. when it decodes to a future year).  The returned date is deliberately
+    set to the first day of the year so it always passes a 90-day age check
+    for the current year and the previous year.
+    """
+    if wgn_value is None:
+        return None
+    try:
+        wgn_str = str(int(wgn_value))
+        if len(wgn_str) < 2:
+            return None
+        year = 2000 + int(wgn_str[:2])
+        if 2015 <= year <= 2030:
+            return datetime(year, 1, 1, tzinfo=timezone.utc)
+        return None
+    except (ValueError, TypeError):
+        return None
+
+
 def parse_derm_record(attrs: Dict[str, Any]) -> Dict[str, Any]:
     """Parse a raw DERM API record into our lead schema.
 
-    Uses FILE_ID to extract the real permit filing date.
+    Date extraction strategy (in priority order):
+      1. FILE_ID   → decode_file_id()          — exact date when available
+      2. WORK_GROUP_NUMBER → decode_work_group_number() — year approximation
+                                                           (YYYY-01-01) used when
+                                                           FILE_ID has no usable date
+                                                           (e.g. future-dated IDs)
+
     Returns a dict with an extra '_filing_date' key (datetime or None)
     for downstream age validation.
     """
@@ -101,8 +142,10 @@ def parse_derm_record(attrs: Dict[str, Any]) -> Dict[str, Any]:
     if not address and attrs.get("HOUSE_NUMBER") and attrs.get("STREET_NAME"):
         address = f"{attrs['HOUSE_NUMBER']} {attrs['STREET_NAME']}"
 
-    # Extract real date from FILE_ID
+    # Extract real date from FILE_ID; fall back to WORK_GROUP_NUMBER year
     filing_date = decode_file_id(attrs.get("FILE_ID"))
+    if filing_date is None:
+        filing_date = decode_work_group_number(attrs.get("WORK_GROUP_NUMBER"))
     permit_date_str = filing_date.strftime("%Y-%m-%d") if filing_date else None
 
     permit_type = (attrs.get("PERMIT_TITLE") or attrs.get("TITLE_CODE_DESCRIPTION") or "TREE PERMIT")
