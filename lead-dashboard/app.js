@@ -1,0 +1,1023 @@
+/**
+ * Tree Permit Lead Discovery Dashboard
+ * Grand Edition — Overview, Lead List, Map View, System Health
+ * Connects to Supabase for real-time data, falls back to demo data.
+ */
+
+// ── Configuration ──────────────────────────────────────────────────────
+const CONFIG = {
+    SUPABASE_URL: 'https://tjzpqyfjtjepvguywzgn.supabase.co',
+    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqenBxeWZqdGplcHZndXl3emduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzgyMjQsImV4cCI6MjA5MDg1NDIyNH0.H42xFcUVYoyIHqFd1OskGBWi4OHdvClZ0EMr566FJrI',
+};
+
+// ── Supabase Client ────────────────────────────────────────────────────
+let supabaseClient = null;
+try {
+    if (window.supabase && !CONFIG.SUPABASE_URL.includes('your-project')) {
+        supabaseClient = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+    }
+} catch (e) {
+    console.warn('Supabase not configured — using demo data.', e);
+}
+
+// ── State ──────────────────────────────────────────────────────────────
+let leadGridApi = null;
+let healthGridApi = null;
+let allLeads = [];
+let allJobRuns = [];
+let currentDetailLead = null;
+let leafletMap = null;
+let mapMarkers = [];
+let chartTimeline = null;
+let chartSources = null;
+let chartScores = null;
+let globalSearchTerm = '';
+
+// ── Spinner helpers ────────────────────────────────────────────────────
+function hideSpinner() {
+    const el = document.getElementById('loadingSpinner');
+    if (el) {
+        el.classList.add('hidden');
+        el.style.display = 'none'; // Absolute fallback
+    }
+}
+
+// ── Initialize ─────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    // If agGrid CDN script failed to load, show error and bail out immediately
+    if (typeof agGrid === 'undefined') {
+        hideSpinner();
+        const el = document.getElementById('loadingSpinner');
+        if (el) {
+            el.innerHTML = '<div class="text-center p-8"><p class="text-red-600 font-bold text-lg">⚠️ Failed to load AG Grid from CDN.</p><p class="text-gray-500 text-sm mt-2">Check your internet connection and refresh the page.</p></div>';
+            el.classList.remove('hidden');
+            el.style.display = 'flex';
+        }
+        return;
+    }
+
+    // Safety net: hide spinner after 8 seconds no matter what
+    const spinnerTimer = setTimeout(() => {
+        hideSpinner();
+        try { switchTab('overview'); } catch(e) {}
+        try { showToast('Dashboard loaded (timeout fallback)', 'info'); } catch(e) {}
+    }, 8000);
+
+    initTheme();
+    try { initLeadGrid(); } catch(e) { console.error('initLeadGrid failed:', e); }
+    try { initHealthGrid(); } catch(e) { console.error('initHealthGrid failed:', e); }
+
+    loadData().finally(() => clearTimeout(spinnerTimer));
+
+    // Wire up global search
+    const searchInput = document.getElementById('globalSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            globalSearchTerm = searchInput.value;
+            applyFilters();
+        });
+    }
+});
+
+// ── Theme ──────────────────────────────────────────────────────────────
+function initTheme() {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+}
+
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    // Re-render charts for theme
+    if (allLeads.length > 0) renderCharts();
+}
+
+function isDark() {
+    return document.documentElement.getAttribute('data-theme') === 'dark';
+}
+
+// ── Data Loading ───────────────────────────────────────────────────────
+async function loadData() {
+    try {
+        await Promise.all([loadLeads(), loadJobRuns()]);
+    } catch (err) {
+        console.error('loadData error:', err);
+        try { loadDemoData(); } catch(e) { console.error('Demo leads failed:', e); }
+        try { loadDemoHealthData(); } catch(e) { console.error('Demo health failed:', e); }
+    } finally {
+        hideSpinner();
+        try { switchTab('overview'); } catch(e) { console.error('switchTab failed:', e); }
+    }
+}
+
+async function loadLeads() {
+    if (!supabaseClient) {
+        loadDemoData();
+        return;
+    }
+
+    try {
+        const { data: leads, error: permErr } = await supabaseClient
+            .from('leads')
+            .select('*')
+            .order('discovered_at', { ascending: false })
+            .limit(5000);
+        if (permErr) throw permErr;
+
+        allLeads = leads || [];
+        onLeadsLoaded();
+    } catch (err) {
+        console.warn('loadLeads failed, using demo:', err.message || err);
+        loadDemoData();
+    }
+}
+
+async function loadJobRuns() {
+    if (!supabaseClient) {
+        loadDemoHealthData();
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('job_runs')
+            .select('*')
+            .order('started_at', { ascending: false })
+            .limit(50);
+
+        if (error) throw error;
+
+        allJobRuns = data || [];
+        if (healthGridApi) healthGridApi.setGridOption('rowData', allJobRuns);
+        renderHealthCards(allJobRuns);
+    } catch (err) {
+        console.warn('loadJobRuns failed, using demo:', err.message || err);
+        loadDemoHealthData();
+    }
+}
+
+function onLeadsLoaded() {
+    if (leadGridApi) leadGridApi.setGridOption('rowData', allLeads);
+    updateStats();
+    renderCharts();
+    renderRecentLeads();
+    const badge = document.getElementById('leadCountBadge');
+    if (badge) badge.textContent = allLeads.length;
+}
+
+function refreshData() {
+    showToast('Refreshing data...');
+    loadData();
+}
+
+// ── Lead Grid ──────────────────────────────────────────────────────────
+function initLeadGrid() {
+    const columnDefs = [
+        {
+            headerCheckboxSelection: true,
+            checkboxSelection: true,
+            width: 40, maxWidth: 40, pinned: 'left',
+            suppressMenu: true, resizable: false,
+        },
+        {
+            field: 'lead_score', headerName: 'Score',
+            width: 80, maxWidth: 80,
+            cellRenderer: scoreRenderer,
+            sort: 'desc', sortIndex: 0,
+        },
+        {
+            field: 'address', headerName: 'Address',
+            minWidth: 200, flex: 2,
+            cellRenderer: addressRenderer,
+        },
+        {
+            field: 'permit_type', headerName: 'Permit Type',
+            minWidth: 140, flex: 1,
+        },
+        {
+            field: 'permit_date', headerName: 'Date',
+            width: 110, maxWidth: 120,
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
+            sort: 'desc', sortIndex: 1,
+        },
+        {
+            field: 'jurisdiction', headerName: 'Jurisdiction',
+            width: 140, maxWidth: 160,
+        },
+        {
+            field: 'source_name', headerName: 'Source',
+            width: 120, maxWidth: 140,
+            valueFormatter: (p) => formatSourceName(p.value),
+        },
+        {
+            field: 'lead_status', headerName: 'Status',
+            width: 100, maxWidth: 110,
+            cellRenderer: statusRenderer,
+        },
+        {
+            headerName: 'Actions', width: 90, maxWidth: 100,
+            cellRenderer: actionsRenderer,
+            suppressMenu: true, sortable: false, filter: false,
+        },
+    ];
+
+    const gridOptions = {
+        columnDefs,
+        rowData: [],
+        rowSelection: 'multiple',
+        suppressRowClickSelection: true,
+        animateRows: true,
+        pagination: true,
+        paginationPageSize: 50,
+        paginationPageSizeSelector: [25, 50, 100, 200],
+        defaultColDef: { sortable: true, filter: true, resizable: true },
+        getRowClass: (params) => {
+            if (params.data && params.data.lead_status === 'new') return 'lead-new';
+            return '';
+        },
+        onSelectionChanged: () => {
+            const count = leadGridApi.getSelectedRows().length;
+            console.log(`${count} selected`);
+        },
+        onRowDoubleClicked: (e) => openDetail(e.data),
+        isExternalFilterPresent: () => true,
+        doesExternalFilterPass: doesFilterPass,
+    };
+
+    const gridDiv = document.getElementById('leadGrid');
+    leadGridApi = agGrid.createGrid(gridDiv, gridOptions);
+}
+
+// ── Cell Renderers ─────────────────────────────────────────────────────
+function scoreRenderer(params) {
+    const score = params.value || 0;
+    let cls = 'score-low';
+    if (score >= 7) cls = 'score-high';
+    else if (score >= 4) cls = 'score-medium';
+    return `<span class="score-badge ${cls}">${score}</span>`;
+}
+
+function addressRenderer(params) {
+    const addr = params.value || '—';
+    return `<span style="cursor:pointer;color:var(--ag-foreground-color)" class="hover:underline" onclick="openDetailById('${params.data.id}')">${addr}</span>`;
+}
+
+function statusRenderer(params) {
+    const status = params.value || 'new';
+    return `<span class="status-badge status-${status}">${status}</span>`;
+}
+
+function actionsRenderer(params) {
+    const id = params.data.id;
+    return `
+        <span class="row-action-btn row-action-approve" title="Approve" onclick="updateLeadStatus('${id}','approved')">✓</span>
+        <span class="row-action-btn row-action-reject" title="Reject" onclick="updateLeadStatus('${id}','rejected')">✗</span>
+    `;
+}
+
+function formatSourceName(name) {
+    const map = {
+        'derm_tree': 'DERM Tree Permits',
+        'fort_lauderdale': 'Fort Lauderdale',
+        'city_of_miami': 'City of Miami',
+    };
+    return map[name] || name || '—';
+}
+
+// ── Filters ────────────────────────────────────────────────────────────
+function doesFilterPass(node) {
+    const data = node.data;
+    if (!data) return false;
+
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    const jurisdiction = document.getElementById('filterJurisdiction').value;
+    const status = document.getElementById('filterStatus').value;
+    const minScore = document.getElementById('filterMinScore').value;
+
+    if (dateFrom && data.permit_date && data.permit_date < dateFrom) return false;
+    if (dateTo && data.permit_date && data.permit_date > dateTo) return false;
+    if (jurisdiction && data.jurisdiction !== jurisdiction) return false;
+    if (status && data.lead_status !== status) return false;
+    if (minScore && (data.lead_score || 0) < parseInt(minScore)) return false;
+
+    // Global search
+    if (globalSearchTerm) {
+        const search = globalSearchTerm.toLowerCase();
+        const haystack = [data.address, data.permit_type, data.contractor_name, data.owner_name, data.permit_number, data.jurisdiction]
+            .filter(Boolean).join(' ').toLowerCase();
+        if (!haystack.includes(search)) return false;
+    }
+
+    return true;
+}
+
+function applyFilters() {
+    if (leadGridApi) leadGridApi.onFilterChanged();
+}
+
+// Alias for HTML onchange handlers
+const onFilterChanged = applyFilters;
+
+function clearFilters() {
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    document.getElementById('filterJurisdiction').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterMinScore').value = '';
+    document.getElementById('globalSearch').value = '';
+    globalSearchTerm = '';
+    applyFilters();
+}
+
+function globalSearchFilter() {
+    globalSearchTerm = document.getElementById('globalSearch').value;
+    applyFilters();
+}
+
+// ── Lead Actions ───────────────────────────────────────────────────────
+async function updateLeadStatus(id, status) {
+    try {
+        const lead = allLeads.find(l => l.id === id);
+        if (supabaseClient && lead) {
+            const { error } = await supabaseClient.from('leads').update({ lead_status: status }).eq('id', id);
+            if (error) throw error;
+        }
+        if (lead) {
+            lead.lead_status = status;
+            leadGridApi.applyTransaction({ update: [lead] });
+            updateStats();
+        }
+        showToast(`Lead ${status}`);
+    } catch (err) {
+        console.error('Failed to update lead:', err);
+        showToast('Failed to update lead', 'error');
+    }
+}
+
+async function bulkAction(status) {
+    const selected = leadGridApi.getSelectedRows();
+    if (selected.length === 0) { showToast('No leads selected'); return; }
+
+    try {
+        if (supabaseClient) {
+            const ids = selected.map(r => r.id);
+            if (ids.length) {
+                const { error } = await supabaseClient.from('leads').update({ lead_status: status }).in('id', ids);
+                if (error) throw error;
+            }
+        }
+        selected.forEach(lead => { lead.lead_status = status; });
+        leadGridApi.applyTransaction({ update: selected });
+        leadGridApi.deselectAll();
+        updateStats();
+        showToast(`${selected.length} leads ${status}`);
+    } catch (err) {
+        console.error('Bulk action failed:', err);
+        showToast('Bulk action failed', 'error');
+    }
+}
+
+function bulkApprove() { bulkAction('approved'); }
+function bulkReject() { bulkAction('rejected'); }
+
+// ── Export ──────────────────────────────────────────────────────────────
+function exportCSV() {
+    if (leadGridApi) {
+        leadGridApi.exportDataAsCsv({
+            fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
+            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+        });
+        showToast('CSV exported');
+    }
+}
+
+function exportSelected() {
+    const selected = leadGridApi.getSelectedRows();
+    if (selected.length === 0) { showToast('No leads selected'); return; }
+
+    selected.forEach(lead => { lead.lead_status = 'exported'; });
+    leadGridApi.applyTransaction({ update: selected });
+
+    leadGridApi.exportDataAsCsv({
+        fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
+        onlySelected: true,
+        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+    });
+
+    // Mark as exported in db
+    if (supabaseClient) {
+        try {
+            supabaseClient.from('leads').update({ lead_status: 'exported' }).in('id', ids).then();
+        } catch(e){}
+    }
+
+    leadGridApi.deselectAll();
+    updateStats();
+    showToast(`${selected.length} leads exported`);
+}
+
+// ── Detail Modal ───────────────────────────────────────────────────────
+function openDetail(lead) {
+    currentDetailLead = lead;
+    const rawJson = lead.raw_payload_json
+        ? (typeof lead.raw_payload_json === 'string' ? JSON.parse(lead.raw_payload_json) : lead.raw_payload_json)
+        : {};
+
+    const html = `
+        <div class="space-y-0">
+            <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value font-semibold">${lead.address || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Jurisdiction</span><span class="detail-value">${lead.jurisdiction || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Permit Type</span><span class="detail-value">${lead.permit_type || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${lead.permit_description || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Permit #</span><span class="detail-value font-mono">${lead.permit_number || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Permit Date</span><span class="detail-value">${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge status-${lead.lead_status || 'new'}">${lead.lead_status || 'new'}</span></span></div>
+            <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: lead.lead_score})}</span></div>
+            <div class="detail-row"><span class="detail-label">Owner</span><span class="detail-value">${lead.owner_name || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Contractor</span><span class="detail-value">${lead.contractor_name || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Contractor Phone</span><span class="detail-value">${lead.contractor_phone ? `<a href="tel:${lead.contractor_phone}" class="text-accent-600 hover:underline">${lead.contractor_phone}</a>` : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Source</span><span class="detail-value">${formatSourceName(lead.source_name)}</span></div>
+            <div class="detail-row"><span class="detail-label">Source URL</span><span class="detail-value">${lead.source_url && lead.source_url !== '#' ? `<a href="${lead.source_url}" target="_blank" class="text-accent-600 hover:underline text-sm">View Original ↗</a>` : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Discovered</span><span class="detail-value">${lead.discovered_at ? new Date(lead.discovered_at).toLocaleString() : '—'}</span></div>
+        </div>
+        <div class="mt-4">
+            <div class="raw-json-toggle" onclick="toggleRawJson()">▶ Raw Permit Data</div>
+            <div id="rawJsonContent" class="raw-json-content hidden">${JSON.stringify(rawJson, null, 2)}</div>
+        </div>
+    `;
+
+    document.getElementById('detailContent').innerHTML = html;
+    document.getElementById('detailModal').classList.remove('hidden');
+}
+
+function openDetailById(id) {
+    const lead = allLeads.find(l => l.id === id);
+    if (lead) openDetail(lead);
+}
+
+function closeDetail() {
+    document.getElementById('detailModal').classList.add('hidden');
+    currentDetailLead = null;
+}
+
+// Alias for HTML onclick
+const closeDetailModal = closeDetail;
+
+function detailAction(status) {
+    if (currentDetailLead) {
+        updateLeadStatus(currentDetailLead.id, status);
+        closeDetail();
+    }
+}
+
+function approveCurrentLead() { detailAction('approved'); }
+function rejectCurrentLead() { detailAction('rejected'); }
+
+function toggleRawJson() {
+    const el = document.getElementById('rawJsonContent');
+    const toggle = el.previousElementSibling;
+    if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        toggle.textContent = '▼ Raw Permit Data';
+    } else {
+        el.classList.add('hidden');
+        toggle.textContent = '▶ Raw Permit Data';
+    }
+}
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDetail(); });
+
+// ── Stats ──────────────────────────────────────────────────────────────
+function updateStats() {
+    const counts = { total: allLeads.length, new: 0, approved: 0, rejected: 0, exported: 0, highScore: 0 };
+    allLeads.forEach(l => {
+        const s = l.lead_status || 'new';
+        if (counts[s] !== undefined) counts[s]++;
+        if ((l.lead_score || 0) >= 7) counts.highScore++;
+    });
+
+    document.getElementById('statTotal').querySelector('p').textContent = counts.total.toLocaleString();
+    document.getElementById('statNew').querySelector('p').textContent = counts.new.toLocaleString();
+    document.getElementById('statApproved').querySelector('p').textContent = counts.approved.toLocaleString();
+    document.getElementById('statRejected').querySelector('p').textContent = counts.rejected.toLocaleString();
+    document.getElementById('statExported').querySelector('p').textContent = counts.exported.toLocaleString();
+    document.getElementById('statHighScore').querySelector('p').textContent = counts.highScore.toLocaleString();
+}
+
+// ── Tab Switching ──────────────────────────────────────────────────────
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+    const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+    const panel = document.getElementById(`tab-${tab}`);
+    if (btn) btn.classList.add('active');
+    if (panel) {
+        panel.classList.remove('hidden');
+        panel.classList.add('fade-in');
+    }
+
+    // Lazy init map
+    if (tab === 'map' && !leafletMap) {
+        setTimeout(() => initMap(), 100);
+    }
+    if (tab === 'map' && leafletMap) {
+        setTimeout(() => leafletMap.invalidateSize(), 100);
+    }
+}
+
+// ── Charts (Overview Tab) ──────────────────────────────────────────────
+function renderCharts() {
+    renderTimelineChart();
+    renderSourcesChart();
+    renderScoresChart();
+}
+
+function getChartColors() {
+    const dark = isDark();
+    return {
+        text: dark ? '#94a3b8' : '#64748b',
+        grid: dark ? '#1e293b' : '#f1f5f9',
+        bg: dark ? '#111827' : '#ffffff',
+    };
+}
+
+function renderTimelineChart() {
+    const ctx = document.getElementById('timelineChart');
+    if (!ctx) return;
+
+    // Group by date
+    const byDate = {};
+    allLeads.forEach(l => {
+        const d = l.permit_date ? l.permit_date.slice(0, 10) : null;
+        if (d) byDate[d] = (byDate[d] || 0) + 1;
+    });
+
+    const sorted = Object.entries(byDate).sort((a, b) => a[0].localeCompare(b[0]));
+    const labels = sorted.map(([d]) => d);
+    const data = sorted.map(([, c]) => c);
+    const colors = getChartColors();
+
+    if (chartTimeline) chartTimeline.destroy();
+    chartTimeline = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: 'Leads',
+                data,
+                backgroundColor: 'rgba(5, 150, 105, 0.6)',
+                borderColor: '#059669',
+                borderWidth: 1,
+                borderRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: colors.text, maxTicksLimit: 10, font: { size: 10 } }, grid: { display: false } },
+                y: { ticks: { color: colors.text, font: { size: 10 } }, grid: { color: colors.grid } },
+            },
+        },
+    });
+}
+
+function renderSourcesChart() {
+    const ctx = document.getElementById('sourcesChart');
+    if (!ctx) return;
+
+    const bySrc = {};
+    allLeads.forEach(l => {
+        const s = formatSourceName(l.source_name);
+        bySrc[s] = (bySrc[s] || 0) + 1;
+    });
+
+    const labels = Object.keys(bySrc);
+    const data = Object.values(bySrc);
+    const bgColors = ['#059669', '#3b82f6', '#f59e0b', '#8b5cf6'];
+    const colors = getChartColors();
+
+    if (chartSources) chartSources.destroy();
+    chartSources = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{ data, backgroundColor: bgColors.slice(0, labels.length), borderWidth: 0 }],
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { color: colors.text, padding: 16, font: { size: 11 } } },
+            },
+        },
+    });
+}
+
+function renderScoresChart() {
+    const ctx = document.getElementById('scoresChart');
+    if (!ctx) return;
+
+    const buckets = { '1-3 (Low)': 0, '4-6 (Medium)': 0, '7-9 (High)': 0 };
+    allLeads.forEach(l => {
+        const s = l.lead_score || 0;
+        if (s >= 7) buckets['7-9 (High)']++;
+        else if (s >= 4) buckets['4-6 (Medium)']++;
+        else buckets['1-3 (Low)']++;
+    });
+
+    const colors = getChartColors();
+
+    if (chartScores) chartScores.destroy();
+    chartScores = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(buckets),
+            datasets: [{
+                label: 'Leads',
+                data: Object.values(buckets),
+                backgroundColor: ['#e5e7eb', '#fbbf24', '#22c55e'],
+                borderRadius: 6,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: colors.text, font: { size: 10 } }, grid: { color: colors.grid } },
+                y: { ticks: { color: colors.text, font: { size: 11 } }, grid: { display: false } },
+            },
+        },
+    });
+}
+
+// ── Recent Leads (Overview Tab) ────────────────────────────────────────
+function renderRecentLeads() {
+    const container = document.getElementById('recentLeads');
+    if (!container) return;
+
+    const recent = [...allLeads]
+        .filter(l => (l.lead_score || 0) >= 4)
+        .sort((a, b) => (b.permit_date || '').localeCompare(a.permit_date || ''))
+        .slice(0, 8);
+
+    if (recent.length === 0) {
+        container.innerHTML = '<p class="text-sm text-gray-500 py-4 text-center">No high-value leads yet.</p>';
+        return;
+    }
+
+    container.innerHTML = recent.map(lead => {
+        const isNew = lead.lead_status === 'new';
+        return `
+            <div class="record-item ${isNew ? 'record-item-new' : ''}" onclick="openDetail(allLeads.find(l=>l.id==='${lead.id}'))">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="font-medium text-sm truncate">${lead.address || '—'}</span>
+                        ${isNew ? '<span class="badge-new">New</span>' : ''}
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${lead.permit_type || '—'} · ${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
+                </div>
+                ${scoreRenderer({value: lead.lead_score})}
+            </div>
+        `;
+    }).join('');
+}
+
+// ── Map View ───────────────────────────────────────────────────────────
+function initMap() {
+    if (leafletMap) return;
+    leafletMap = L.map('mapContainer').setView([25.78, -80.20], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap',
+        maxZoom: 19,
+    }).addTo(leafletMap);
+    updateMapMarkers();
+}
+
+function updateMapMarkers() {
+    if (!leafletMap) return;
+    // Clear existing
+    mapMarkers.forEach(m => leafletMap.removeLayer(m));
+    mapMarkers = [];
+
+    const showHigh = document.getElementById('mapFilterHigh').checked;
+    const showMedium = document.getElementById('mapFilterMedium').checked;
+    const showLow = document.getElementById('mapFilterLow').checked;
+
+    let count = 0;
+    allLeads.forEach(lead => {
+        const score = lead.lead_score || 0;
+        if (score >= 7 && !showHigh) return;
+        if (score >= 4 && score < 7 && !showMedium) return;
+        if (score < 4 && !showLow) return;
+
+        // Generate lat/lng from address (deterministic pseudo-random for demo)
+        const coords = getLeadCoords(lead);
+        if (!coords) return;
+
+        const color = score >= 7 ? '#22c55e' : score >= 4 ? '#f59e0b' : '#9ca3af';
+        const icon = L.divIcon({
+            className: '',
+            html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
+            iconSize: [12, 12],
+            iconAnchor: [6, 6],
+        });
+
+        const marker = L.marker(coords, { icon }).addTo(leafletMap);
+        marker.bindPopup(`
+            <div style="font-family:Inter,sans-serif;min-width:200px">
+                <div style="font-weight:600;font-size:13px;margin-bottom:4px">${lead.address || '—'}</div>
+                <div style="font-size:11px;color:#6b7280">${lead.permit_type || '—'}</div>
+                <div style="font-size:11px;color:#6b7280">${formatSourceName(lead.source_name)} · Score: ${score}</div>
+                <div style="margin-top:6px"><a href="#" onclick="openDetailById('${lead.id}');return false;" style="color:#059669;font-size:11px;font-weight:600">View Details →</a></div>
+            </div>
+        `);
+        mapMarkers.push(marker);
+        count++;
+    });
+
+    document.getElementById('mapLeadCount').textContent = `${count} leads on map`;
+}
+
+function getLeadCoords(lead) {
+    // If real lat/lng exist in raw payload, use them
+    if (lead.latitude && lead.longitude) return [lead.latitude, lead.longitude];
+
+    // Deterministic pseudo-random based on address for demo
+    const addr = lead.address || '';
+    let hash = 0;
+    for (let i = 0; i < addr.length; i++) {
+        hash = ((hash << 5) - hash) + addr.charCodeAt(i);
+        hash |= 0;
+    }
+
+    // South Florida bounding box
+    const latBase = 25.7;
+    const lngBase = -80.3;
+    const lat = latBase + (Math.abs(hash % 1000) / 1000) * 0.25;
+    const lng = lngBase + (Math.abs((hash >> 10) % 1000) / 1000) * 0.3;
+    return [lat, lng];
+}
+
+// ── Health Tab ─────────────────────────────────────────────────────────
+function initHealthGrid() {
+    const columnDefs = [
+        { field: 'source_name', headerName: 'Source', valueFormatter: p => formatSourceName(p.value), flex: 1 },
+        { field: 'job_name', headerName: 'Worker', flex: 1 },
+        {
+            field: 'status', headerName: 'Status', width: 120,
+            cellRenderer: (p) => {
+                const s = p.value || 'unknown';
+                return `<span class="health-status health-${s}">${s}</span>`;
+            },
+        },
+        { field: 'records_found', headerName: 'Found', width: 90, type: 'numericColumn' },
+        { field: 'records_inserted', headerName: 'Inserted', width: 100, type: 'numericColumn' },
+        {
+            field: 'started_at', headerName: 'Started', width: 160,
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
+        },
+        {
+            field: 'finished_at', headerName: 'Finished', width: 160,
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
+        },
+        {
+            field: 'error_message', headerName: 'Error', flex: 1,
+            cellStyle: { color: '#dc2626', fontSize: '12px' },
+        },
+    ];
+
+    const gridOptions = {
+        columnDefs, rowData: [], animateRows: true,
+        pagination: true, paginationPageSize: 20,
+        defaultColDef: { sortable: true, resizable: true },
+    };
+
+    const gridDiv = document.getElementById('healthGrid');
+    healthGridApi = agGrid.createGrid(gridDiv, gridOptions);
+}
+
+function renderHealthCards(runs) {
+    const sources = {};
+    const sourceOrder = ['derm_tree', 'fort_lauderdale', 'city_of_miami'];
+    const sourceIcons = {
+        derm_tree: '�', 
+        fort_lauderdale: '🏖️',
+        city_of_miami: '🌴',
+    };
+
+    runs.forEach(run => {
+        const src = run.source_name;
+        if (!sources[src] || new Date(run.started_at) > new Date(sources[src].started_at)) {
+            sources[src] = run;
+        }
+    });
+
+    const container = document.getElementById('healthCards');
+    container.innerHTML = sourceOrder.map(src => {
+        const run = sources[src];
+        const icon = sourceIcons[src] || '📋';
+
+        if (!run) {
+            return `
+                <div class="health-source-card">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gray-100 dark:bg-gray-800">${icon}</div>
+                        <div>
+                            <h4 class="font-bold text-sm">${formatSourceName(src)}</h4>
+                            <p class="text-xs text-gray-500">No runs recorded</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <span class="health-status" style="background:#f3f4f6;color:#6b7280">NO DATA</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        const statusCls = `health-${run.status}`;
+        const errorHtml = run.error_message
+            ? `<p class="mt-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">${run.error_message}</p>`
+            : '';
+
+        return `
+            <div class="health-source-card">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-gray-100 dark:bg-gray-800">${icon}</div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-bold text-sm">${formatSourceName(src)}</h4>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">${run.finished_at ? new Date(run.finished_at).toLocaleString() : 'In progress...'}</p>
+                    </div>
+                    <span class="health-status ${statusCls}">${(run.status || 'unknown').toUpperCase()}</span>
+                </div>
+                <div class="space-y-0">
+                    <div class="health-row"><span class="health-label">Records Found</span><span class="health-value">${(run.records_found || 0).toLocaleString()}</span></div>
+                    <div class="health-row"><span class="health-label">Inserted</span><span class="health-value">${(run.records_inserted || 0).toLocaleString()}</span></div>
+                </div>
+                ${errorHtml}
+            </div>
+        `;
+    }).join('');
+}
+
+// ── Email Modal ────────────────────────────────────────────────────────
+function openEmailModal() {
+    document.getElementById('emailModal').classList.remove('hidden');
+}
+
+function closeEmailModal() {
+    document.getElementById('emailModal').classList.add('hidden');
+}
+
+function saveEmailSettings() {
+    const email = document.getElementById('emailAddress').value;
+    const prefs = {
+        daily: document.getElementById('emailDigest').checked,
+        newLeads: document.getElementById('emailNewLeads').checked,
+        errors: document.getElementById('emailErrors').checked,
+    };
+
+    // In production, this would save to Supabase email_subscriptions table
+    console.log('Email subscription:', { email, prefs });
+
+    closeEmailModal();
+    showToast('Email notification settings saved!');
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toastNotification');
+    if (!toast) return;
+
+    const bgClass = type === 'error' 
+        ? 'bg-red-600 text-white' 
+        : isDark() ? 'bg-gray-100 text-gray-900' : 'bg-gray-900 text-white';
+
+    toast.innerHTML = `<div class="px-4 py-2.5 rounded-xl shadow-xl text-sm font-medium ${bgClass} toast-enter">${message}</div>`;
+    toast.classList.remove('hidden');
+
+    setTimeout(() => {
+        const inner = toast.querySelector('div');
+        if (inner) inner.classList.add('toast-exit');
+        setTimeout(() => {
+            toast.classList.add('hidden');
+            toast.innerHTML = '';
+        }, 300);
+    }, 2500);
+}
+
+// ── Demo Data ──────────────────────────────────────────────────────────
+function loadDemoData() {
+    const jurisdictions = ['Miami-Dade County', 'Fort Lauderdale', 'City of Miami'];
+    const sources = ['Miami-Dade DERM', 'Fort Lauderdale', 'City of Miami'];
+    const permitTypes = [
+        'Landscape Tree Removal-Relocation Permit',
+        'TREE REMOVAL',
+        'TREE PERMIT',
+        'VEGETATION REMOVAL',
+        'ARBOR PERMIT',
+        'Tree Trimming Permit',
+        'Mangrove Trimming Permit',
+    ];
+    const statuses = ['new', 'new', 'new', 'new', 'approved', 'rejected', 'exported'];
+    const addresses = [
+        '1200 NW 7 AVE', '4521 SW 34 ST', '99 SE 14 ST', '330 SW 16 ST',
+        '777 BRICKELL AVE', '2850 TIGERTAIL AVE', '1463 NE 63 CT', '215 SW 10 ST',
+        '5727 N FEDERAL HWY', '850 MERIDIAN AVE', '431 SW 56 AV', '1350 NW 50 ST',
+        '2881 SW 33 CT', '204 NE 17 AVE', '332 SW 16 ST', '6340 NW 21 AVE',
+        '15120 SW 159 CT', '14207 KENDALE LAKES CIR', '9555 SW 162 AVE', '73 W FLAGLER ST',
+        '700 SW 57 AVE', '470 NW 83 ST', '1921 N BAYSHORE DR', '345 OCEAN DR',
+        '8800 SW 152 ST', '3001 GRAND AVE', '100 S BISCAYNE BLVD', '2655 COLLINS AVE',
+        '4000 ALTON RD', '1111 LINCOLN RD', '555 WASHINGTON AVE', '900 S MIAMI AVE',
+        '250 CATALONIA AVE', '1500 BAY RD', '6901 COLLINS AVE', '3400 SW 27 AVE',
+        '7700 N KENDALL DR', '18501 PINES BLVD', '2000 CONVENTION CENTER DR', '401 BISCAYNE BLVD',
+    ];
+    const contractors = [
+        'ABC Tree Service LLC', 'South Florida Tree Pros', 'Green Canopy Removal',
+        'TrueTrimmer Corp', 'Evergreen Tree Solutions', 'Tropical Arborists Inc',
+        'Palm Beach Tree Masters', null, null, null,
+    ];
+    const descriptions = [
+        'Tree removal - Large Oak in backyard, dead/hazardous',
+        'Removal of 3 palm trees for new construction',
+        'Vegetation clearing for commercial development',
+        'Emergency tree removal - Hurricane damage',
+        'Tree trimming and crown reduction - Banyan',
+        'Mangrove trimming along waterfront property',
+        'Tree relocation for parking lot expansion',
+        'Removal of invasive species - Melaleuca trees',
+    ];
+
+    allLeads = [];
+    for (let i = 0; i < 75; i++) {
+        const srcIdx = i % sources.length;
+        const jIdx = srcIdx === 0 ? 0 : srcIdx === 1 ? 1 : 2;
+        const daysAgo = Math.floor(Math.random() * 30);
+        const date = new Date();
+        date.setDate(date.getDate() - daysAgo);
+        const contractor = contractors[Math.floor(Math.random() * contractors.length)];
+        const score = Math.floor(Math.random() * 9) + 1;
+
+        allLeads.push({
+            id: `demo-${i}`,
+            source_name: sources[srcIdx],
+            jurisdiction: jurisdictions[jIdx],
+            address: addresses[i % addresses.length],
+            permit_type: permitTypes[i % permitTypes.length],
+            permit_description: descriptions[i % descriptions.length],
+            permit_number: `TREE-${String(25000 + i).padStart(8, '0')}`,
+            permit_status: 'Issued',
+            permit_date: date.toISOString().slice(0, 10),
+            owner_name: `Property Owner ${i + 1}`,
+            contractor_name: contractor,
+            contractor_phone: contractor ? `(${305 + Math.floor(Math.random() * 50)}) ${String(Math.floor(Math.random() * 9000000) + 1000000)}` : null,
+            source_url: '#',
+            lead_score: score,
+            lead_status: statuses[Math.floor(Math.random() * statuses.length)],
+            lead_type: 'permit',
+            discovered_at: new Date(Date.now() - daysAgo * 86400000).toISOString(),
+            raw_payload_json: '{}',
+        });
+    }
+
+    onLeadsLoaded();
+    showToast('Loaded demo data (Supabase not configured)');
+}
+
+function loadDemoHealthData() {
+    const demoRuns = [
+        {
+            id: 'demo-run-1', job_name: 'derm_tree_worker', source_name: 'miami_dade_derm',
+            started_at: new Date(Date.now() - 3600000).toISOString(),
+            finished_at: new Date(Date.now() - 3500000).toISOString(),
+            status: 'success', records_found: 128, records_inserted: 12, error_message: null,
+        },
+        {
+            id: 'demo-run-2', job_name: 'fort_lauderdale_worker', source_name: 'fort_lauderdale',
+            started_at: new Date(Date.now() - 3000000).toISOString(),
+            finished_at: new Date(Date.now() - 2900000).toISOString(),
+            status: 'success', records_found: 45, records_inserted: 8, error_message: null,
+        },
+        {
+            id: 'demo-run-3', job_name: 'miami_tree_worker', source_name: 'city_of_miami_tree',
+            started_at: new Date(Date.now() - 2400000).toISOString(),
+            finished_at: new Date(Date.now() - 2300000).toISOString(),
+            status: 'success', records_found: 22, records_inserted: 5, error_message: null,
+        },
+        {
+            id: 'demo-run-4', job_name: 'miami_building_worker', source_name: 'city_of_miami',
+            started_at: new Date(Date.now() - 1800000).toISOString(),
+            finished_at: new Date(Date.now() - 1700000).toISOString(),
+            status: 'success', records_found: 340, records_inserted: 3, error_message: null,
+        },
+    ];
+
+    allJobRuns = demoRuns;
+    if (healthGridApi) healthGridApi.setGridOption('rowData', demoRuns);
+    renderHealthCards(demoRuns);
+}

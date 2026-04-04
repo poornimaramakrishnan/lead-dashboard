@@ -1,0 +1,342 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tree Permit Lead Discovery</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌳</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: ['class', '[data-theme="dark"]'],
+            theme: { extend: {
+                colors: {
+                    brand: { 50:'#ecfdf5',100:'#d1fae5',200:'#a7f3d0',300:'#6ee7b7',400:'#34d399',500:'#10b981',600:'#059669',700:'#047857',800:'#065f46',900:'#064e3b' },
+                    accent: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8' },
+                },
+                fontFamily: { sans: ['Inter','system-ui','-apple-system','sans-serif'], mono: ['JetBrains Mono','Fira Code','monospace'] },
+            }},
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-alpine.css">
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.noStyle.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <link rel="stylesheet" href="styles.css?v=20260404-5">
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans min-h-screen transition-colors duration-300">
+
+    <!-- ═══════════════ NAVIGATION BAR ═══════════════ -->
+    <nav class="bg-gradient-to-r from-brand-700 via-brand-600 to-emerald-500 shadow-xl sticky top-0 z-50">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand -->
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm text-xl">🌳</div>
+                    <div>
+                        <h1 class="text-lg font-bold text-white leading-tight">Tree Permit Leads</h1>
+                        <p class="text-xs text-brand-200 font-medium">Automated Discovery Pipeline</p>
+                    </div>
+                    <span class="ml-3 flex items-center gap-1.5 bg-white/15 backdrop-blur-sm text-white text-xs font-medium px-3 py-1 rounded-full">
+                        <span class="w-2 h-2 bg-green-300 rounded-full animate-pulse"></span> Live
+                    </span>
+                </div>
+                <!-- Search + Actions -->
+                <div class="flex items-center gap-3">
+                    <div class="relative hidden md:block">
+                        <input type="text" id="globalSearch" placeholder="Search leads..." class="w-64 px-4 py-2 pl-10 rounded-xl bg-white/15 backdrop-blur-sm text-white placeholder-white/60 text-sm border border-white/20 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/25 transition-all">
+                        <svg class="absolute left-3 top-2.5 w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <button onclick="openEmailModal()" class="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-all" title="Email Settings">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </button>
+                    <button onclick="toggleTheme()" class="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-all" title="Toggle Theme">
+                        <svg id="themeIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    </button>
+                    <button onclick="refreshData()" class="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition-all" title="Refresh Data">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ═══════════════ TAB BAR ═══════════════ -->
+    <div class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
+            <div class="flex items-center gap-1 py-2 overflow-x-auto">
+                <button class="tab-btn active" onclick="switchTab('overview')" data-tab="overview">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    Overview
+                </button>
+                <button class="tab-btn" onclick="switchTab('leads')" data-tab="leads">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    Lead List
+                    <span id="leadCountBadge" class="ml-1.5 px-2 py-0.5 bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-300 text-xs font-bold rounded-full">0</span>
+                </button>
+                <button class="tab-btn" onclick="switchTab('map')" data-tab="map">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    Map View
+                </button>
+                <button class="tab-btn" onclick="switchTab('health')" data-tab="health">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    System Health
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ LOADING SPINNER ═══════════════ -->
+    <div id="loadingSpinner" class="fixed inset-0 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm z-40 flex items-center justify-center">
+        <div class="text-center">
+            <div class="w-16 h-16 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto"></div>
+            <p class="mt-4 text-gray-600 dark:text-gray-400 font-medium">Loading pipeline data...</p>
+        </div>
+    </div>
+
+    <!-- ═══════════════ MAIN CONTENT ═══════════════ -->
+    <main class="max-w-[1600px] mx-auto px-4 sm:px-6 py-6">
+
+        <!-- ── OVERVIEW TAB ── -->
+        <div id="tab-overview" class="tab-content animate__animated animate__fadeIn">
+            <!-- Stat Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                <div class="stat-card" id="statTotal">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Leads</span>
+                        <span class="text-lg">📊</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-gray-900 dark:text-white">0</p>
+                </div>
+                <div class="stat-card" id="statNew">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-blue-500 uppercase tracking-wider">New</span>
+                        <span class="text-lg">🆕</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-blue-600 dark:text-blue-400">0</p>
+                </div>
+                <div class="stat-card" id="statApproved">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-green-500 uppercase tracking-wider">Approved</span>
+                        <span class="text-lg">✅</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-green-600 dark:text-green-400">0</p>
+                </div>
+                <div class="stat-card" id="statRejected">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-red-500 uppercase tracking-wider">Rejected</span>
+                        <span class="text-lg">❌</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-red-600 dark:text-red-400">0</p>
+                </div>
+                <div class="stat-card" id="statExported">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-purple-500 uppercase tracking-wider">Exported</span>
+                        <span class="text-lg">📤</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-purple-600 dark:text-purple-400">0</p>
+                </div>
+                <div class="stat-card" id="statHighScore">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-amber-500 uppercase tracking-wider">Score 7+</span>
+                        <span class="text-lg">⭐</span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-amber-600 dark:text-amber-400">0</p>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                <div class="chart-card lg:col-span-2">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Leads Over Time</h3>
+                    <canvas id="timelineChart" height="120"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">By Source</h3>
+                    <canvas id="sourcesChart" height="200"></canvas>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <div class="chart-card">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Score Distribution</h3>
+                    <canvas id="scoresChart" height="120"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Recent Leads</h3>
+                    <div id="recentLeads" class="space-y-2 max-h-[300px] overflow-y-auto pr-2"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── LEADS TAB ── -->
+        <div id="tab-leads" class="tab-content hidden animate__animated animate__fadeIn">
+            <!-- Filters -->
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 mb-4">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Date From</label>
+                        <input type="date" id="filterDateFrom" class="filter-input" onchange="onFilterChanged()">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Date To</label>
+                        <input type="date" id="filterDateTo" class="filter-input" onchange="onFilterChanged()">
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Jurisdiction</label>
+                        <select id="filterJurisdiction" class="filter-input" onchange="onFilterChanged()">
+                            <option value="">All</option>
+                            <option value="Miami-Dade County">Miami-Dade County</option>
+                            <option value="Fort Lauderdale">Fort Lauderdale</option>
+                            <option value="City of Miami">City of Miami</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Status</label>
+                        <select id="filterStatus" class="filter-input" onchange="onFilterChanged()">
+                            <option value="">All</option>
+                            <option value="new">New</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="exported">Exported</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 block">Min Score</label>
+                        <input type="number" id="filterMinScore" class="filter-input" min="0" max="10" step="1" placeholder="0" onchange="onFilterChanged()">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="clearFilters()" class="btn-action btn-action-secondary w-full">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Actions -->
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <button onclick="bulkApprove()" class="btn-action btn-action-approve">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Approve Selected
+                    </button>
+                    <button onclick="bulkReject()" class="btn-action btn-action-reject">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        Reject Selected
+                    </button>
+                </div>
+                <button onclick="exportCSV()" class="btn-action btn-action-primary">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Export CSV
+                </button>
+            </div>
+
+            <!-- AG Grid -->
+            <div id="leadGrid" class="ag-theme-custom" style="height: 600px; width: 100%;"></div>
+        </div>
+
+        <!-- ── MAP TAB ── -->
+        <div id="tab-map" class="tab-content hidden animate__animated animate__fadeIn">
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 mb-4">
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="mapFilterHigh" checked onchange="updateMapMarkers()" class="w-4 h-4 text-green-600 rounded focus:ring-green-500">
+                            <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span> High (7-10)
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="mapFilterMedium" checked onchange="updateMapMarkers()" class="w-4 h-4 text-amber-600 rounded focus:ring-amber-500">
+                            <span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Medium (4-6)
+                        </label>
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input type="checkbox" id="mapFilterLow" checked onchange="updateMapMarkers()" class="w-4 h-4 text-gray-600 rounded focus:ring-gray-500">
+                            <span class="w-3 h-3 rounded-full bg-gray-400 inline-block"></span> Low (0-3)
+                        </label>
+                    </div>
+                    <span id="mapLeadCount" class="text-sm text-gray-500 dark:text-gray-400 font-medium">0 leads shown</span>
+                </div>
+            </div>
+            <div id="mapContainer" class="rounded-2xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-800" style="height: 650px;"></div>
+        </div>
+
+        <!-- ── HEALTH TAB ── -->
+        <div id="tab-health" class="tab-content hidden animate__animated animate__fadeIn">
+            <div id="healthCards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+            <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-4">
+                <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Run History</h3>
+                <div id="healthGrid" class="ag-theme-custom" style="height: 400px; width: 100%;"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- ═══════════════ DETAIL MODAL (slide-in panel) ═══════════════ -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeDetailModal()"></div>
+        <div class="absolute right-0 top-0 h-full w-full max-w-lg bg-white dark:bg-gray-900 shadow-2xl overflow-y-auto animate__animated animate__slideInRight animate__faster">
+            <div class="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-4 flex items-center justify-between z-10">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white">Lead Details</h2>
+                <button onclick="closeDetailModal()" class="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="detailContent" class="p-6"></div>
+            <div class="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-6 py-4 flex gap-3">
+                <button onclick="rejectCurrentLead()" class="btn-action btn-action-reject flex-1">Reject</button>
+                <button onclick="approveCurrentLead()" class="btn-action btn-action-approve flex-1">Approve</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ EMAIL MODAL ═══════════════ -->
+    <div id="emailModal" class="fixed inset-0 z-50 hidden flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeEmailModal()"></div>
+        <div class="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate__animated animate__zoomIn animate__faster">
+            <div class="px-6 py-5 border-b border-gray-200 dark:border-gray-800">
+                <h2 class="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Email Notifications
+                </h2>
+            </div>
+            <div id="emailFormContainer" class="p-6">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 block">Email Address</label>
+                        <input type="email" id="emailAddress" placeholder="your@email.com" class="filter-input w-full">
+                    </div>
+                    <div class="space-y-3">
+                        <label class="text-sm font-semibold text-gray-700 dark:text-gray-300 block">Notification Preferences</label>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="emailDigest" checked class="w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Daily digest summary</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="emailNewLeads" checked class="w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Immediate new lead alerts</span>
+                        </label>
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="emailErrors" class="w-4 h-4 text-brand-600 rounded focus:ring-brand-500">
+                            <span class="text-sm text-gray-700 dark:text-gray-300">Pipeline error notifications</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
+                <button onclick="closeEmailModal()" class="btn-action btn-action-secondary">Cancel</button>
+                <button onclick="saveEmailSettings()" class="btn-action btn-action-primary">Save Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════ TOAST ═══════════════ -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-[60] hidden"></div>
+
+    <script src="app.js?v=20260404-5"></script>
+</body>
+</html>
