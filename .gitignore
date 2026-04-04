@@ -41,3 +41,14 @@ coverage.xml
 
 # Node (dashboard)
 lead-dashboard/node_modules/
+
+# Private — pipeline, tests, docs kept in private repo only
+pipeline/
+tests/
+.github/
+.env.example
+pyproject.toml
+requirements.txt
+README.md
+*.docx
+*.md
