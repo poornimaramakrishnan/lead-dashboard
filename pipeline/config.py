@@ -14,7 +14,11 @@ RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 NOTIFICATION_EMAIL = os.getenv("NOTIFICATION_EMAIL", "")
 
 # ── Source Kill Switches ──────────────────────────────────────────────────────
-MIAMI_DADE_DERM_ACTIVE = os.getenv("MIAMI_DADE_DERM_ACTIVE", "true").lower() == "true"
+# DERM disabled: 2026 records have no address data (FOLIO=0, all address fields
+# null). The FOLIO→address cross-reference only works for older records that
+# have already been processed. Re-enable when DERM populates FOLIO on new
+# applications, then use PaParcelView_gdb to enrich addresses.
+MIAMI_DADE_DERM_ACTIVE = os.getenv("MIAMI_DADE_DERM_ACTIVE", "false").lower() == "true"
 FORT_LAUDERDALE_ACTIVE = os.getenv("FORT_LAUDERDALE_ACTIVE", "true").lower() == "true"
 CITY_OF_MIAMI_ACTIVE = os.getenv("CITY_OF_MIAMI_ACTIVE", "true").lower() == "true"
 

@@ -365,6 +365,7 @@ class TestWorkerKillSwitches:
 class TestRunDermWorker:
     """Test run_derm_worker with mocked dependencies."""
 
+    @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
     @patch("pipeline.workers.derm.insert_leads_batch", return_value=2)
     @patch("pipeline.workers.derm.complete_job_run")
     @patch("pipeline.workers.derm.create_job_run", return_value="run-001")
@@ -404,6 +405,7 @@ class TestRunDermWorker:
         # Verify it was called with success status
         assert mock_complete_run.call_args[1]["status"] == "success" or mock_complete_run.call_args[0][1] == "success"
 
+    @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
     @patch("pipeline.workers.derm.insert_leads_batch")
     @patch("pipeline.workers.derm.complete_job_run")
     @patch("pipeline.workers.derm.create_job_run", return_value="run-001")
@@ -423,6 +425,7 @@ class TestRunDermWorker:
         assert result["records_skipped"] == 1
         mock_insert.assert_not_called()
 
+    @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
     @patch("pipeline.workers.derm.complete_job_run")
     @patch("pipeline.workers.derm.create_job_run", return_value="run-err")
     @patch("pipeline.workers.derm.get_existing_permit_numbers", side_effect=Exception("DB down"))
@@ -432,6 +435,12 @@ class TestRunDermWorker:
         assert len(result["errors"]) > 0
         # Should still call complete_job_run with failed status
         mock_complete.assert_called_once()
+
+    @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", False)
+    def test_disabled_source_skips_cleanly(self):
+        """When MIAMI_DADE_DERM_ACTIVE is False, worker returns disabled status."""
+        result = run_derm_worker()
+        assert result["status"] == "disabled"
 
 
 # ══════════════════════════════════════════════════════════════════════════════
