@@ -278,14 +278,32 @@ async function loadLeads() {
     }
 
     try {
-        const { data: leads, error: permErr } = await supabaseClient
-            .from('leads')
-            .select('*')
-            .order('discovered_at', { ascending: false })
-            .limit(20000);
-        if (permErr) throw permErr;
+        let allFetchedLeads = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        allLeads = leads || [];
+        while (hasMore) {
+            const { data: page, error: permErr } = await supabaseClient
+                .from('leads')
+                .select('*')
+                .order('discovered_at', { ascending: false })
+                .range(offset, offset + pageSize - 1);
+            
+            if (permErr) throw permErr;
+
+            if (page && page.length > 0) {
+                allFetchedLeads.push(...page);
+                offset += pageSize;
+            }
+            
+            // Stop if we got less than a full page, or if we hit an arbitrary max safety limit of 25,000
+            if (!page || page.length < pageSize || allFetchedLeads.length >= 25000) {
+                hasMore = false;
+            }
+        }
+
+        allLeads = allFetchedLeads || [];
         onLeadsLoaded();
     } catch (err) {
         console.warn('loadLeads failed, using demo:', err.message || err);
