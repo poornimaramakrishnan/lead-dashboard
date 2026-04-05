@@ -189,41 +189,41 @@ function initLeadGrid() {
         },
         {
             field: 'lead_score', headerName: 'Score',
-            width: 80, maxWidth: 80,
+            width: 75, maxWidth: 75,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
         {
             field: 'address', headerName: 'Address',
-            minWidth: 200, flex: 2,
+            minWidth: 150, flex: 1,
             cellRenderer: addressRenderer,
         },
         {
             field: 'permit_type', headerName: 'Permit Type',
-            minWidth: 140, flex: 1,
+            minWidth: 160, flex: 1.5,
         },
         {
             field: 'permit_date', headerName: 'Date',
-            width: 110, maxWidth: 120,
+            width: 120, minWidth: 110,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
             sort: 'desc', sortIndex: 1,
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
-            width: 140, maxWidth: 160,
+            width: 150, minWidth: 130,
         },
         {
             field: 'source_name', headerName: 'Source',
-            width: 120, maxWidth: 140,
+            width: 145, minWidth: 130,
             valueFormatter: (p) => formatSourceName(p.value),
         },
         {
             field: 'lead_status', headerName: 'Status',
-            width: 100, maxWidth: 110,
+            width: 110, minWidth: 100,
             cellRenderer: statusRenderer,
         },
         {
-            headerName: 'Actions', width: 90, maxWidth: 100,
+            headerName: 'Actions', width: 110, minWidth: 100,
             cellRenderer: actionsRenderer,
             suppressMenu: true, sortable: false, filter: false,
         },
@@ -279,7 +279,7 @@ function actionsRenderer(params) {
     const id = params.data.id;
     return `
         <span class="row-action-btn row-action-approve" title="Approve" onclick="updateLeadStatus('${id}','approved')">✓</span>
-        <span class="row-action-btn row-action-reject" title="Reject" onclick="updateLeadStatus('${id}','rejected')">✗</span>
+        <span class="row-action-btn row-action-reject" title="Reject" onclick="updateLeadStatus('${id}','rejected')">✕</span>
     `;
 }
 
@@ -793,23 +793,17 @@ function updateMapMarkers() {
 }
 
 function getLeadCoords(lead) {
-    // If real lat/lng exist in raw payload, use them
-    if (lead.latitude && lead.longitude) return [lead.latitude, lead.longitude];
-
-    // Deterministic pseudo-random based on address for demo
-    const addr = lead.address || '';
-    let hash = 0;
-    for (let i = 0; i < addr.length; i++) {
-        hash = ((hash << 5) - hash) + addr.charCodeAt(i);
-        hash |= 0;
+    // Only use real lat/lng from the database — never synthesize fake coordinates.
+    // DERM and Miami Tree permits have null lat/lon and should not appear on the map.
+    if (lead.latitude && lead.longitude) {
+        const lat = parseFloat(lead.latitude);
+        const lng = parseFloat(lead.longitude);
+        // Sanity-check: must be within South Florida bounding box
+        if (lat >= 25.1 && lat <= 26.5 && lng >= -81.0 && lng <= -79.9) {
+            return [lat, lng];
+        }
     }
-
-    // South Florida bounding box
-    const latBase = 25.7;
-    const lngBase = -80.3;
-    const lat = latBase + (Math.abs(hash % 1000) / 1000) * 0.25;
-    const lng = lngBase + (Math.abs((hash >> 10) % 1000) / 1000) * 0.3;
-    return [lat, lng];
+    return null; // No real coords — don't place on map
 }
 
 // ── Health Tab ─────────────────────────────────────────────────────────

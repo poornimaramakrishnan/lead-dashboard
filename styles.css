@@ -128,16 +128,17 @@
 /* ── Row action buttons (in AG Grid cells) ──────────────── */
 .row-action-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 26px; height: 26px; border-radius: 6px;
+    width: 28px; height: 28px; border-radius: 6px;
     cursor: pointer; font-size: 14px; font-weight: bold;
     transition: all 0.15s ease; margin-right: 4px;
+    border: 1.5px solid transparent;
 }
-.row-action-approve { background: #dcfce7; color: #16a34a; }
-.row-action-approve:hover { background: #bbf7d0; }
-.row-action-reject { background: #fee2e2; color: #dc2626; }
-.row-action-reject:hover { background: #fecaca; }
-[data-theme="dark"] .row-action-approve { background: rgba(22,163,74,0.15); color: #4ade80; }
-[data-theme="dark"] .row-action-reject { background: rgba(220,38,38,0.15); color: #f87171; }
+.row-action-approve { background: #dcfce7; color: #16a34a; border-color: #86efac; }
+.row-action-approve:hover { background: #bbf7d0; border-color: #4ade80; }
+.row-action-reject { background: #dc2626; color: #ffffff; border-color: #b91c1c; font-size: 13px; }
+.row-action-reject:hover { background: #b91c1c; border-color: #991b1b; }
+[data-theme="dark"] .row-action-approve { background: rgba(22,163,74,0.2); color: #4ade80; border-color: rgba(74,222,128,0.3); }
+[data-theme="dark"] .row-action-reject { background: #dc2626; color: #ffffff; border-color: #ef4444; }
 
 /* ── New lead row highlight ─────────────────────────────── */
 .lead-new { border-left: 3px solid #059669 !important; }
