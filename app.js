@@ -587,7 +587,8 @@ function renderTimelineChart() {
             }],
         },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -598,8 +599,21 @@ function renderTimelineChart() {
                 },
             },
             scales: {
-                x: { ticks: { color: colors.text, maxTicksLimit: 13, font: { size: 10 } }, grid: { display: false } },
-                y: { beginAtZero: true, ticks: { color: colors.text, font: { size: 10 }, precision: 0 }, grid: { color: colors.grid } },
+                x: {
+                    ticks: { color: colors.text, maxTicksLimit: 13, font: { size: 10 } },
+                    grid: { display: false },
+                },
+                y: {
+                    beginAtZero: true,
+                    suggestedMax: Math.max(...data, 5) * 1.25,
+                    ticks: {
+                        color: colors.text,
+                        font: { size: 10 },
+                        precision: 0,
+                        maxTicksLimit: 5,
+                    },
+                    grid: { color: colors.grid },
+                },
             },
         },
     });

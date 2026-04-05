@@ -13,6 +13,8 @@ Key characteristics:
   - Hard rule: records older than MAX_PERMIT_AGE_DAYS (90) are rejected
 """
 import logging
+import urllib.request
+import urllib.parse
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 
@@ -54,6 +56,66 @@ OUT_FIELDS = (
     "TITLE_CODE,TITLE_CODE_DESCRIPTION,PERMIT_TITLE,"
     "PERMIT_CLASS,PERMIT_CLASS_DESCRIPTION"
 )
+
+# DERMPermit_gdb — spatial layer populated later in the permit lifecycle.
+# Has ADDRESS, LAT/LON, and non-zero FOLIO for permits that have been
+# spatially assigned.  Join key: TABLE.WORK_GROUP_NUMBER == GDB.PERMITNUM.
+DERM_GDB_URL = (
+    "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/ArcGIS/rest/services"
+    "/DERMPermit_gdb/FeatureServer/0"
+)
+
+
+def fetch_derm_gdb_addresses() -> Dict[str, Dict]:
+    """Pre-fetch ADDRESS / LAT / LON / FOLIO from the DERMPermit_gdb spatial layer.
+
+    Returns a dict keyed by PERMITNUM string (which equals WORK_GROUP_NUMBER
+    in the DermPermits TABLE).  Only current-year TREE permits are fetched.
+    Records missing an ADDRESS are excluded from the result.
+
+    The GDB layer is populated *after* the raw permit intake table, so
+    coverage is partial — typically 5-30 % of TABLE records have a GDB
+    match.  Callers should fall back gracefully when the key is absent.
+    """
+    import json
+
+    current_year = datetime.now(timezone.utc).year
+    year_prefix = str(current_year)[2:]  # e.g. "26" for 2026
+    where = f"PERMITTYPE='TREE' AND PERMITNUM LIKE '{year_prefix}%'"
+    params = urllib.parse.urlencode({
+        "where": where,
+        "outFields": "PERMITNUM,ADDRESS,LAT,LON,FOLIO",
+        "returnGeometry": "false",
+        "resultRecordCount": 5000,
+        "f": "json",
+    })
+    url = f"{DERM_GDB_URL}/query?{params}"
+
+    gdb_map: Dict[str, Dict] = {}
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            payload = json.loads(resp.read().decode())
+        for feat in payload.get("features", []):
+            a = feat.get("attributes", {})
+            permitnum = str(a.get("PERMITNUM") or "").strip()
+            address = (a.get("ADDRESS") or "").strip()
+            if not permitnum or not address:
+                continue
+            gdb_map[permitnum] = {
+                "address": address,
+                "lat": a.get("LAT"),
+                "lon": a.get("LON"),
+                "folio": str(a.get("FOLIO") or "").strip(),
+            }
+        logger.info(
+            "DERMPermit_gdb: fetched %d address-enriched records for year %s",
+            len(gdb_map), current_year,
+        )
+    except Exception as exc:
+        # Non-fatal: proceed without GDB enrichment rather than aborting the run
+        logger.warning("Could not fetch DERMPermit_gdb addresses: %s", exc)
+
+    return gdb_map
 
 
 def decode_file_id(file_id_value) -> Optional[datetime]:
@@ -134,7 +196,10 @@ def decode_work_group_number(wgn_value) -> Optional[datetime]:
         return None
 
 
-def parse_derm_record(attrs: Dict[str, Any]) -> Dict[str, Any]:
+def parse_derm_record(
+    attrs: Dict[str, Any],
+    gdb_map: Optional[Dict[str, Dict]] = None,
+) -> Dict[str, Any]:
     """Parse a raw DERM API record into our lead schema.
 
     Date extraction strategy (in priority order):
@@ -144,12 +209,32 @@ def parse_derm_record(attrs: Dict[str, Any]) -> Dict[str, Any]:
                                                            FILE_ID has no usable date
                                                            (e.g. future-dated IDs)
 
+    Address enrichment (gdb_map):
+      The DermPermits TABLE has FOLIO=0 and no address for newly-filed
+      2026 permits.  Pass the result of fetch_derm_gdb_addresses() as
+      gdb_map and this function will look up WORK_GROUP_NUMBER to get
+      the real address, lat, and lon from the DERMPermit_gdb spatial
+      layer.  Falls back to FACILITY_ADDRESS / HOUSE_NUMBER+STREET_NAME
+      when no GDB match exists.
+
     Returns a dict with an extra '_filing_date' key (datetime or None)
     for downstream age validation.
     """
-    address = attrs.get("FACILITY_ADDRESS") or ""
+    wgn = str(int(attrs["WORK_GROUP_NUMBER"])) if attrs.get("WORK_GROUP_NUMBER") else ""
+    gdb = (gdb_map or {}).get(wgn, {})
+
+    # Address: prefer GDB (real geocoded address), fall back to TABLE fields
+    address = (
+        gdb.get("address")
+        or attrs.get("FACILITY_ADDRESS")
+        or ""
+    )
     if not address and attrs.get("HOUSE_NUMBER") and attrs.get("STREET_NAME"):
         address = f"{attrs['HOUSE_NUMBER']} {attrs['STREET_NAME']}"
+
+    # Coordinates from GDB when available
+    lat = gdb.get("lat")
+    lon = gdb.get("lon")
 
     # Extract real date from FILE_ID; fall back to WORK_GROUP_NUMBER year
     filing_date = decode_file_id(attrs.get("FILE_ID"))
@@ -173,6 +258,8 @@ def parse_derm_record(attrs: Dict[str, Any]) -> Dict[str, Any]:
         "owner_name": (attrs.get("FACILITY_NAME") or "").strip() or None,
         "contractor_name": None,
         "contractor_phone": None,
+        "lat": lat,
+        "lon": lon,
         "source_url": f"{DERM_PERMITS_URL}/query?where=PERMIT_NUMBER='{attrs.get('PERMIT_NUMBER')}'&f=json",
         "raw_payload": attrs,
         "_filing_date": filing_date,  # datetime for age validation
@@ -206,6 +293,11 @@ def run_derm_worker() -> Dict[str, Any]:
             "Loaded %d existing permit numbers, %d address keys for dedup",
             len(existing_permits), len(existing_keys),
         )
+
+        # Pre-fetch GDB address map once — enriches current-year records
+        # that have no address in the raw DermPermits TABLE.
+        gdb_map = fetch_derm_gdb_addresses()
+        logger.info("GDB address map ready: %d enrichable records", len(gdb_map))
 
         # Determine the ObjectId to start from
         last_run = get_last_successful_run(SOURCE_NAME)
@@ -241,7 +333,7 @@ def run_derm_worker() -> Dict[str, Any]:
                     continue
 
                 # Parse record (now includes real filing date from FILE_ID)
-                lead = parse_derm_record(attrs)
+                lead = parse_derm_record(attrs, gdb_map=gdb_map)
                 filing_date = lead.pop("_filing_date", None)
 
                 # Hard rule: reject records with no decodable date

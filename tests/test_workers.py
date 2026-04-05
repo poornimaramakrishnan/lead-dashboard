@@ -234,6 +234,53 @@ class TestParseDermRecord:
         assert lead["source_name"] == "miami_dade_derm"
         assert lead["permit_number"] is None
 
+    def test_gdb_address_overrides_table_address(self):
+        """When gdb_map has a match, GDB address takes precedence over TABLE address."""
+        attrs = {
+            "PERMIT_NUMBER": "DERM-2600152",
+            "PERMIT_TITLE": "TREE REMOVAL",
+            "PERMIT_STATUS_DESCRIPTION": "NEW APPLICATION",
+            "FACILITY_ADDRESS": None,  # TABLE has no address (2026 record)
+            "HOUSE_NUMBER": None,
+            "STREET_NAME": None,
+            "FILE_ID": 2026031510000000,
+            "WORK_GROUP_NUMBER": 2600152,
+        }
+        gdb_map = {
+            "2600152": {
+                "address": "5563 SW 164TH AVE",
+                "lat": 25.71315,
+                "lon": -80.45908,
+                "folio": "8800000000008",
+            }
+        }
+        lead = parse_derm_record(attrs, gdb_map=gdb_map)
+        assert lead["address"] == "5563 SW 164TH AVE"
+        assert lead["lat"] == 25.71315
+        assert lead["lon"] == -80.45908
+
+    def test_gdb_no_match_falls_back_to_table_address(self):
+        """When WGN has no GDB entry, TABLE FACILITY_ADDRESS is used."""
+        attrs = {
+            "PERMIT_NUMBER": "DERM-9999999",
+            "PERMIT_TITLE": "TREE PERMIT",
+            "PERMIT_STATUS_DESCRIPTION": "NEW APPLICATION",
+            "FACILITY_ADDRESS": "100 NW 7TH ST",
+            "FILE_ID": 2026031510000000,
+            "WORK_GROUP_NUMBER": 9999999,
+        }
+        gdb_map = {}  # No match
+        lead = parse_derm_record(attrs, gdb_map=gdb_map)
+        assert lead["address"] == "100 NW 7TH ST"
+        assert lead["lat"] is None
+        assert lead["lon"] is None
+
+    def test_gdb_none_map_uses_table_address(self):
+        """Passing gdb_map=None falls back gracefully to TABLE address."""
+        lead = parse_derm_record({"FACILITY_ADDRESS": "50 SW 1ST AVE", "WORK_GROUP_NUMBER": 1234})
+        assert lead["address"] == "50 SW 1ST AVE"
+        assert lead["lat"] is None
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  Fort Lauderdale Worker – parse_fl_record
@@ -366,6 +413,7 @@ class TestRunDermWorker:
     """Test run_derm_worker with mocked dependencies."""
 
     @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
+    @patch("pipeline.workers.derm.fetch_derm_gdb_addresses", return_value={})
     @patch("pipeline.workers.derm.insert_leads_batch", return_value=2)
     @patch("pipeline.workers.derm.complete_job_run")
     @patch("pipeline.workers.derm.create_job_run", return_value="run-001")
@@ -376,7 +424,7 @@ class TestRunDermWorker:
     @patch("pipeline.workers.derm.stream_pages")
     def test_successful_run(
         self, mock_stream, mock_count, mock_permits, mock_keys,
-        mock_last_run, mock_create_run, mock_complete_run, mock_insert,
+        mock_last_run, mock_create_run, mock_complete_run, mock_insert, mock_gdb,
     ):
         mock_stream.return_value = iter([
             [
@@ -406,6 +454,7 @@ class TestRunDermWorker:
         assert mock_complete_run.call_args[1]["status"] == "success" or mock_complete_run.call_args[0][1] == "success"
 
     @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
+    @patch("pipeline.workers.derm.fetch_derm_gdb_addresses", return_value={})
     @patch("pipeline.workers.derm.insert_leads_batch")
     @patch("pipeline.workers.derm.complete_job_run")
     @patch("pipeline.workers.derm.create_job_run", return_value="run-001")
@@ -416,7 +465,7 @@ class TestRunDermWorker:
     @patch("pipeline.workers.derm.stream_pages")
     def test_dedup_skips_known_permits(
         self, mock_stream, mock_count, mock_permits, mock_keys,
-        mock_last_run, mock_create_run, mock_complete_run, mock_insert,
+        mock_last_run, mock_create_run, mock_complete_run, mock_insert, mock_gdb,
     ):
         mock_stream.return_value = iter([
             [{"ObjectId": 1, "PERMIT_NUMBER": "DERM-001", "FACILITY_ADDRESS": "100 NW 1ST ST", "PERMIT_TITLE": "TREE REMOVAL", "PERMIT_STATUS_DESCRIPTION": "OK"}]
@@ -441,6 +490,52 @@ class TestRunDermWorker:
         """When MIAMI_DADE_DERM_ACTIVE is False, worker returns disabled status."""
         result = run_derm_worker()
         assert result["status"] == "disabled"
+
+    @patch("pipeline.workers.derm.MIAMI_DADE_DERM_ACTIVE", True)
+    @patch("pipeline.workers.derm.fetch_derm_gdb_addresses", return_value={
+        "2600152": {
+            "address": "5563 SW 164TH AVE",
+            "lat": 25.71315,
+            "lon": -80.45908,
+            "folio": "8800000000008",
+        }
+    })
+    @patch("pipeline.workers.derm.insert_leads_batch", return_value=1)
+    @patch("pipeline.workers.derm.complete_job_run")
+    @patch("pipeline.workers.derm.create_job_run", return_value="run-gdb")
+    @patch("pipeline.workers.derm.get_last_successful_run", return_value=None)
+    @patch("pipeline.workers.derm.get_existing_address_keys", return_value=set())
+    @patch("pipeline.workers.derm.get_existing_permit_numbers", return_value=set())
+    @patch("pipeline.workers.derm.get_record_count", return_value=1)
+    @patch("pipeline.workers.derm.stream_pages")
+    def test_gdb_address_enrichment_in_run(
+        self, mock_stream, mock_count, mock_permits, mock_keys,
+        mock_last_run, mock_create_run, mock_complete_run, mock_insert, mock_gdb,
+    ):
+        """GDB address map is fetched once and used to enrich leads during the run."""
+        mock_stream.return_value = iter([
+            [
+                {
+                    "ObjectId": 1,
+                    "PERMIT_NUMBER": "DERM-2600152",
+                    "WORK_GROUP": "TREE",
+                    "WORK_GROUP_NUMBER": 2600152,
+                    "FACILITY_ADDRESS": None,   # No address in TABLE
+                    "PERMIT_TITLE": "TREE REMOVAL",
+                    "PERMIT_STATUS_DESCRIPTION": "NEW APPLICATION",
+                    "FILE_ID": 2026031510000000,
+                },
+            ]
+        ])
+        result = run_derm_worker()
+        assert result["status"] == "success"
+        assert result["records_found"] == 1
+        mock_gdb.assert_called_once()
+        # Verify the inserted lead has the GDB address
+        inserted_leads = mock_insert.call_args[0][0]
+        assert len(inserted_leads) == 1
+        assert inserted_leads[0]["address"] == "5563 SW 164TH AVE"
+        assert inserted_leads[0]["lat"] == 25.71315
 
 
 # ══════════════════════════════════════════════════════════════════════════════
