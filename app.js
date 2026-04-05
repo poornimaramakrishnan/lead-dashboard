@@ -8,6 +8,8 @@
 const CONFIG = {
     SUPABASE_URL: 'https://tjzpqyfjtjepvguywzgn.supabase.co',
     SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqenBxeWZqdGplcHZndXl3emduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzgyMjQsImV4cCI6MjA5MDg1NDIyNH0.H42xFcUVYoyIHqFd1OskGBWi4OHdvClZ0EMr566FJrI',
+    // Cloudflare Worker URL — update after running: npx wrangler deploy
+    WORKER_URL: 'https://lead-pipeline-api.YOUR_SUBDOMAIN.workers.dev',
 };
 
 // ── Supabase Client ────────────────────────────────────────────────────
@@ -942,56 +944,64 @@ async function saveEmailSettings() {
     // Save to localStorage as cache
     localStorage.setItem('emailPrefs', JSON.stringify({ email, ...prefs }));
 
-    // Save to Supabase
-    if (supabaseClient) {
+    // POST to Cloudflare Worker — it upserts Supabase AND dispatches the adhoc report
+    const workerUrl = CONFIG.WORKER_URL;
+    if (!workerUrl.includes('YOUR_SUBDOMAIN')) {
         try {
-            const { error } = await supabaseClient
-                .from('email_subscribers')
-                .upsert({
-                    email: email,
+            const resp = await fetch(`${workerUrl}/api/subscribe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email,
+                    daily_digest: prefs.daily,
+                    new_lead_alerts: prefs.newLeads,
+                    error_alerts: prefs.errors,
+                }),
+            });
+            if (!resp.ok) throw new Error(`Worker returned ${resp.status}`);
+            closeEmailModal();
+            showToast('✅ Subscribed! A welcome report is on its way.');
+        } catch (err) {
+            console.warn('Worker subscribe failed, falling back to direct Supabase save:', err);
+            // Fallback: save directly to Supabase without adhoc report
+            if (supabaseClient) {
+                await supabaseClient.from('email_subscribers').upsert({
+                    email,
                     daily_digest: prefs.daily,
                     new_lead_alerts: prefs.newLeads,
                     error_alerts: prefs.errors,
                     subscribed_at: new Date().toISOString(),
                     is_active: true,
                 }, { onConflict: 'email' });
-
-            if (error) throw error;
-
-            // Trigger the adhoc welcome report via GitHub Actions (debounced)
-            triggerAdhocReport(email);
-
+            }
             closeEmailModal();
-            showToast('✅ Subscribed! A welcome report is on its way.');
-        } catch (err) {
-            console.error('Subscription save failed:', err);
-            closeEmailModal();
-            showToast('Settings saved locally. Will sync when online.', 'info');
+            showToast('Settings saved. Report will arrive with the next daily digest.', 'info');
         }
     } else {
-        closeEmailModal();
-        showToast('Email settings saved locally.', 'info');
-    }
-}
-
-async function triggerAdhocReport(email) {
-    // Debounce: skip if triggered within the last 5 minutes
-    const lastTrigger = parseInt(localStorage.getItem('lastReportTrigger') || '0', 10);
-    if (Date.now() - lastTrigger < 5 * 60 * 1000) {
-        console.log('Adhoc report debounced — triggered recently');
-        return;
-    }
-    localStorage.setItem('lastReportTrigger', String(Date.now()));
-
-    // Call the Supabase Edge Function (or Cloudflare Worker) to dispatch the report
-    if (supabaseClient) {
-        try {
-            await supabaseClient.functions.invoke('send-report', {
-                body: { email, type: 'adhoc' },
-            });
-        } catch (err) {
-            // Non-fatal: the email is saved; daily digest will still fire
-            console.warn('Adhoc report trigger failed (non-fatal):', err);
+        // WORKER_URL not yet configured — save direct to Supabase
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from('email_subscribers')
+                    .upsert({
+                        email,
+                        daily_digest: prefs.daily,
+                        new_lead_alerts: prefs.newLeads,
+                        error_alerts: prefs.errors,
+                        subscribed_at: new Date().toISOString(),
+                        is_active: true,
+                    }, { onConflict: 'email' });
+                if (error) throw error;
+                closeEmailModal();
+                showToast('✅ Subscribed! Report will arrive with the next daily digest.');
+            } catch (err) {
+                console.error('Subscription save failed:', err);
+                closeEmailModal();
+                showToast('Settings saved locally. Will sync when online.', 'info');
+            }
+        } else {
+            closeEmailModal();
+            showToast('Email settings saved locally.', 'info');
         }
     }
 }
