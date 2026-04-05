@@ -852,11 +852,12 @@ function initHealthGrid() {
 
 function renderHealthCards(runs) {
     const sources = {};
-    const sourceOrder = ['derm_tree', 'fort_lauderdale', 'city_of_miami'];
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
     const sourceIcons = {
-        derm_tree: '�', 
-        fort_lauderdale: '🏖️',
-        city_of_miami: '🌴',
+        miami_dade_derm:    '🌿',
+        fort_lauderdale:    '🏖️',
+        city_of_miami_tree: '🌴',
+        city_of_miami:      '🏙️',
     };
 
     runs.forEach(run => {
