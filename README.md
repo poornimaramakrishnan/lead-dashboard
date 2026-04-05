@@ -11,7 +11,11 @@ Operational dashboard for the Tree Permit Lead Discovery System. Displays permit
 - **Overview charts** — daily timeline, source breakdown, score distribution
 - **Map view** — Leaflet pins for all geocoded leads
 - **System health** — pipeline job run history and source status
+- **Hot Leads panel** — top 10 highest-scored leads at a glance
+- **Historical Data tab** — browse leads older than 90 days
 - **Dark mode** — persisted via localStorage
+- **Authentication** — password-protected write actions (approve/reject/export/email)
+- **Email subscriptions** — daily digest opt-in via Cloudflare Worker
 
 ## Stack
 
@@ -70,47 +74,19 @@ ArcGIS API - City of Miami Permits                       ↓
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Copy and configure environment
-cp .env.example .env
-# Edit .env with your Supabase and Resend credentials
-
-# 3. Initialize the database
-python -m pipeline.db_init
-
-# 4. Run a test pull
-python -m pipeline.main --once
-
-# 5. Start the scheduler
-python -m pipeline.main
-
-# 6. Serve the dashboard
+# Serve the dashboard locally (no build step needed)
 cd lead-dashboard && python -m http.server 8000
+# Then open http://localhost:8000
 ```
+
+Pipeline setup instructions are in the private pipeline repository.
 
 ## Project Structure
 
 ```
-pipeline/
-  config.py          - Configuration and environment variables
-  arcgis_client.py   - ArcGIS REST API client with retry/pagination
-  filters.py         - Permit classification and keyword filtering
-  scoring.py         - Lead scoring logic
-  dedup.py           - Deduplication and address normalization
-  db.py              - Supabase database operations
-  db_init.py         - Database schema initialization
-  notifications.py   - Resend email daily digest
-  main.py            - APScheduler entry point
-  backfill.py        - Historical data backfill utility
-  workers/
-    derm.py          - Source 1: Miami-Dade DERM tree permits
-    fort_lauderdale.py - Source 2: Fort Lauderdale building permits
-    miami.py         - Source 3: City of Miami permits (tree + building)
 lead-dashboard/
   index.html         - Single-page dashboard (Tailwind + AG Grid)
-  app.js             - Dashboard logic (filters, actions, charts)
+  app.js             - Dashboard logic (filters, actions, charts, auth)
   styles.css         - Custom styles
 tests/
   test_filters.py    - Filter logic tests
@@ -123,3 +99,9 @@ tests/
 .github/workflows/
   daily_pipeline.yml - GitHub Actions daily pipeline schedule
 ```
+
+## Authentication
+
+Write actions (approve, reject, export, email settings) require login.
+The auth endpoint is hosted on a Cloudflare Worker. Credentials are stored
+as Cloudflare Worker secrets (`DASHBOARD_USERNAME`, `DASHBOARD_PASSWORD`).
