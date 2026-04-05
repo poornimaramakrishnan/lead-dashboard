@@ -418,10 +418,51 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// ── Refresh with cooldown ──────────────────────────────────────────────
+const REFRESH_COOLDOWN_MS = 30_000; // 30 seconds
+let lastRefreshAt = 0;
+let refreshCooldownTimer = null;
+
 function refreshData() {
     if (!requireAuth('refresh data')) return;
+
+    const now = Date.now();
+    const elapsed = now - lastRefreshAt;
+
+    if (elapsed < REFRESH_COOLDOWN_MS && lastRefreshAt > 0) {
+        const remaining = Math.ceil((REFRESH_COOLDOWN_MS - elapsed) / 1000);
+        showToast(`Please wait ${remaining}s before refreshing again`, 'error');
+        return;
+    }
+
+    lastRefreshAt = now;
+    _startRefreshCooldownUI();
     showToast('Refreshing data...');
     loadData(true);
+}
+
+/** Grey out the refresh button and show a countdown during the cooldown period */
+function _startRefreshCooldownUI() {
+    const btn = document.querySelector('button[onclick="refreshData()"]');
+    if (!btn) return;
+
+    clearInterval(refreshCooldownTimer);
+    btn.disabled = true;
+    btn.style.opacity = '0.45';
+    btn.title = 'Refreshing...';
+
+    let remaining = Math.ceil(REFRESH_COOLDOWN_MS / 1000);
+    refreshCooldownTimer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+            clearInterval(refreshCooldownTimer);
+            btn.disabled = false;
+            btn.style.opacity = '';
+            btn.title = 'Refresh Data';
+        } else {
+            btn.title = `Refresh available in ${remaining}s`;
+        }
+    }, 1000);
 }
 
 // ── Lead Grid ──────────────────────────────────────────────────────────
@@ -1362,6 +1403,9 @@ function renderHealthCards(runs) {
 }
 
 // ── Email Modal ────────────────────────────────────────────────────────
+const EMAIL_SUBSCRIBE_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes — matches Worker debounce
+let lastSubscribeAt = 0;
+
 function openEmailModal() {
     if (!requireAuth('manage email settings')) return;
     document.getElementById('emailModal').classList.remove('hidden');
@@ -1384,6 +1428,15 @@ async function saveEmailSettings() {
         showToast('Please enter a valid email address', 'error');
         return;
     }
+
+    // Client-side debounce — mirror the Worker's 5-min debounce to avoid accidental double-dispatch
+    const now = Date.now();
+    if (now - lastSubscribeAt < EMAIL_SUBSCRIBE_COOLDOWN_MS && lastSubscribeAt > 0) {
+        const remaining = Math.ceil((EMAIL_SUBSCRIBE_COOLDOWN_MS - (now - lastSubscribeAt)) / 60000);
+        showToast(`Already subscribed recently. Try again in ~${remaining} min.`, 'error');
+        return;
+    }
+    lastSubscribeAt = now;
 
     const prefs = {
         daily: document.getElementById('emailDigest').checked,
