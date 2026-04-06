@@ -224,6 +224,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadData().finally(() => clearTimeout(spinnerTimer));
 
+    // Auto-refresh the sync chip every 3 minutes in the background
+    // (lightweight — fetches only the latest finished_at, no auth needed)
+    setInterval(_pollSyncTime, 3 * 60 * 1000);
+
     // Wire up global search
     const searchInput = document.getElementById('globalSearch');
     if (searchInput) {
@@ -274,14 +278,13 @@ async function loadData(isRefresh = false) {
 
 /** Update the "Last pipeline sync" chip in the nav bar.
  *  Uses the most recent finished_at from job_runs (real pipeline time).
- *  Falls back to current time only if no job_runs are available yet.
  */
 function _updateLastSyncChip() {
     const chip = document.getElementById('lastSyncChip');
     const text = document.getElementById('lastSyncText');
     if (!chip || !text) return;
 
-    // Find the latest successful finished_at across all job runs
+    // Find the latest finished_at across all job runs already in memory
     let latestFinished = null;
     if (allJobRuns && allJobRuns.length > 0) {
         for (const run of allJobRuns) {
@@ -292,18 +295,48 @@ function _updateLastSyncChip() {
         }
     }
 
+    _renderSyncChip(latestFinished);
+}
+
+/** Render the sync chip text given a Date (or null). */
+function _renderSyncChip(latestFinished) {
+    const chip = document.getElementById('lastSyncChip');
+    const text = document.getElementById('lastSyncText');
+    if (!chip || !text) return;
+
     if (latestFinished) {
         const now = new Date();
         const isToday = latestFinished.toDateString() === now.toDateString();
         const timeStr = latestFinished.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        const display = isToday
+        text.textContent = isToday
             ? `Last synced: ${timeStr}`
             : `Last synced: ${latestFinished.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at ${timeStr}`;
-        text.textContent = display;
     } else {
         text.textContent = 'Awaiting first sync';
     }
     chip.classList.remove('hidden');
+}
+
+/** Lightweight background poll — fetches only the latest finished_at from Supabase.
+ *  Runs every 3 minutes. No auth needed (anon key can read job_runs).
+ *  Updates the chip silently without reloading any lead data.
+ */
+async function _pollSyncTime() {
+    if (!supabaseClient) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('job_runs')
+            .select('finished_at')
+            .not('finished_at', 'is', null)
+            .order('finished_at', { ascending: false })
+            .limit(1);
+        if (error || !data || data.length === 0) return;
+        const latest = new Date(data[0].finished_at);
+        // Only update if this is newer than what we already show
+        _renderSyncChip(latest);
+    } catch (e) {
+        // Silently ignore — non-critical background poll
+    }
 }
 
 /**
