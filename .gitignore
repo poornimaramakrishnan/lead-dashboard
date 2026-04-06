@@ -68,12 +68,19 @@ coverage.xml
 # Logs & misc
 *.log
 *.docx
+*.xlsx
+*.pptx
+*.doc
 *.sql
 *.zip
 run_logs*/
 *.txt
 *.md
 !README.md
+
+# Generated reports / artifacts
+Source_Validation_Report.html
+*_Report.html
 
 # Other workspace files that shouldn't go to public repo
 dashboard/
