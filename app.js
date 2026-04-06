@@ -12,10 +12,10 @@
 //                   Also set DASHBOARD_URL GitHub variable to:
 //                   https://<github-username>.github.io/<dashboard-repo>/
 const CONFIG = {
-    SUPABASE_URL: 'https://tjzpqyfjtjepvguywzgn.supabase.co',
-    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqenBxeWZqdGplcHZndXl3emduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNzgyMjQsImV4cCI6MjA5MDg1NDIyNH0.H42xFcUVYoyIHqFd1OskGBWi4OHdvClZ0EMr566FJrI',
+    SUPABASE_URL: 'https://jfvkumjshrtiazitlidx.supabase.co',
+    SUPABASE_KEY: 'sb_publishable_8lkctRFvWQgIWdVFBLFsaQ_Ds0xgkwQ',
     // Cloudflare Worker URL — update after running: npx wrangler deploy
-    WORKER_URL: 'https://lead-pipeline-api.poornima2489.workers.dev',
+    WORKER_URL: 'https://lead-pipeline-api.tree-permit-lead-pipeline.workers.dev',
 };
 
 // ── Supabase Client ────────────────────────────────────────────────────
