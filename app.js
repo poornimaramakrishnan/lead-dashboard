@@ -282,14 +282,25 @@ function _updateLastSyncChip() {
 
     // Find the latest finished_at across all job runs already in memory
     let latestFinished = null;
+    let fallbackFinished = null;
     if (allJobRuns && allJobRuns.length > 0) {
         for (const run of allJobRuns) {
-            // ONLY consider the actual overarching pipeline sync jobs
-            if (run.source_name === 'pipeline_sync' && run.finished_at) {
+            if (run.finished_at) {
                 const t = new Date(run.finished_at);
-                if (!latestFinished || t > latestFinished) latestFinished = t;
+                // Keep track of the most recent completed job as a fallback
+                if (!fallbackFinished || t > fallbackFinished) fallbackFinished = t;
+
+                // ONLY consider the actual overarching pipeline sync jobs primarily
+                if (run.source_name === 'pipeline_sync') {
+                    if (!latestFinished || t > latestFinished) latestFinished = t;
+                }
             }
         }
+    }
+
+    // Fallback if the new pipeline_sync event hasn't executed yet
+    if (!latestFinished && fallbackFinished) {
+        latestFinished = fallbackFinished;
     }
 
     _renderSyncChip(latestFinished);
