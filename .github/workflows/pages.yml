@@ -1,0 +1,43 @@
+﻿name: Deploy Dashboard
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Inject Environment Variables
+        run: |
+          sed -i "s|{{SUPABASE_URL}}|${{ vars.SUPABASE_URL }}|g" app.js
+          sed -i "s|{{SUPABASE_KEY}}|${{ vars.SUPABASE_KEY }}|g" app.js
+          sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" app.js
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

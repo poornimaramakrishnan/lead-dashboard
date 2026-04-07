@@ -31,7 +31,6 @@ pipeline/
 tests/
 supabase/
 lead-pipeline-private/
-.github/
 
 # Environment / secrets
 .env
