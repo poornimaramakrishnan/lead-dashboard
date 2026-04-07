@@ -998,6 +998,7 @@ function exportCSV() {
     if (leadGridApi) {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
+            suppressBOM: true,
             columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
@@ -1015,6 +1016,7 @@ function exportSelected() {
     leadGridApi.exportDataAsCsv({
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
+        suppressBOM: true,
         columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
     });
 

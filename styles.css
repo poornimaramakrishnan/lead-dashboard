@@ -495,12 +495,9 @@ body.auth-locked #authBtn { pointer-events: auto !important; opacity: 1 !importa
     height: 360px;
 }
 @media (min-width: 1024px) {
-    /* On desktop: match the left charts column height exactly */
+    /* On desktop: stretch to fill the grid row height (set by left charts column) */
     .overview-side-panel {
-        height: auto;
-        /* Two chart cards (~236px each) + gap (24px) = ~496px.
-           max-height keeps panels from growing beyond that. */
-        max-height: calc(2 * (clamp(140px, 22vw, 180px) + 56px) + 24px);
+        height: 100%;
     }
 }
 
