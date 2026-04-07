@@ -25,9 +25,11 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Inject Environment Variables
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           sed -i "s|{{SUPABASE_URL}}|${{ vars.SUPABASE_URL }}|g" app.js
-          sed -i "s|{{SUPABASE_KEY}}|${{ vars.SUPABASE_KEY }}|g" app.js
+          sed -i "s|{{SUPABASE_KEY}}|${SUPABASE_KEY}|g" app.js
           sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" app.js
           
       - name: Setup Pages
