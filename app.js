@@ -660,7 +660,7 @@ function initLeadGrid() {
         },
         {
             field: 'lead_score', headerName: 'Score',
-            width: 75, maxWidth: 75,
+            width: 90, minWidth: 80,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
@@ -671,7 +671,7 @@ function initLeadGrid() {
         },
         {
             field: 'permit_type', headerName: 'Permit Type',
-            minWidth: 160, flex: 1.5,
+            minWidth: 120, flex: 0.8,
         },
         {
             field: 'permit_date', headerName: 'Date',
@@ -722,10 +722,97 @@ function initLeadGrid() {
         onRowDoubleClicked: (e) => openDetail(e.data),
         isExternalFilterPresent: () => true,
         doesExternalFilterPass: doesFilterPass,
+        onFirstDataRendered: () => _injectScoreInfoBtn(gridDiv),
     };
 
     const gridDiv = document.getElementById('leadGrid');
     leadGridApi = agGrid.createGrid(gridDiv, gridOptions);
+}
+
+// ── Score Legend Popover ────────────────────────────────────────────────
+const _SCORE_POPOVER_HTML = `
+<div id="scorePopover" class="score-popover" onmouseleave="hideScorePopover()">
+    <h4>📊 Lead Score Legend</h4>
+    <div class="score-popover-row">
+        <span class="score-popover-badge sp-high">7 – 10+</span>
+        <span class="score-popover-label">🔥 <strong>Hot</strong> — Tree removal / arbor permit</span>
+    </div>
+    <div class="score-popover-row">
+        <span class="score-popover-badge sp-med">4 – 6</span>
+        <span class="score-popover-label">⚡ <strong>Warm</strong> — Vegetation / partial match</span>
+    </div>
+    <div class="score-popover-row">
+        <span class="score-popover-badge sp-low">0 – 3</span>
+        <span class="score-popover-label">📋 <strong>Low</strong> — General permit, few signals</span>
+    </div>
+    <div class="score-popover-calc">
+        <strong>How scores are calculated:</strong><br>
+        +5 pts — Tree removal / arbor permit<br>
+        +4 pts — Vegetation removal permit<br>
+        +3 pts — Filed in the last 7 days<br>
+        +2 pts — Parcel &gt; 0.5 acres<br>
+        +1 pt&nbsp; — Right-of-way permit
+    </div>
+</div>`;
+
+let _scorePopoverEl = null;
+
+function _ensureScorePopover() {
+    if (!_scorePopoverEl) {
+        document.body.insertAdjacentHTML('beforeend', _SCORE_POPOVER_HTML);
+        _scorePopoverEl = document.getElementById('scorePopover');
+    }
+    return _scorePopoverEl;
+}
+
+function showScorePopover(evt) {
+    const pop = _ensureScorePopover();
+    pop.classList.add('show');
+    const btn = evt.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    let left = rect.right + 8;
+    let top = rect.top - 4;
+    // Keep within viewport
+    if (left + 350 > window.innerWidth) left = rect.left - 350;
+    if (top + 300 > window.innerHeight) top = Math.max(8, window.innerHeight - 310);
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
+}
+
+function hideScorePopover() {
+    if (_scorePopoverEl) _scorePopoverEl.classList.remove('show');
+}
+
+// Close popover on any click outside
+document.addEventListener('click', (e) => {
+    if (_scorePopoverEl && !e.target.closest('.score-popover') && !e.target.closest('.score-info-btn')) {
+        hideScorePopover();
+    }
+});
+
+function _scoreHeaderWithInfo(label) {
+    return `<span class="score-info-wrap">${label}<button class="score-info-btn" onclick="event.stopPropagation();showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></span>`;
+}
+
+/** Inject an ⓘ button into all AG Grid "Score" column headers inside a container */
+function _injectScoreInfoBtn(container) {
+    if (!container) return;
+    setTimeout(() => {
+        container.querySelectorAll('.ag-header-cell-text').forEach(el => {
+            if (el.textContent.trim() === 'Score' && !el.querySelector('.score-info-btn')) {
+                const btn = document.createElement('button');
+                btn.className = 'score-info-btn';
+                btn.title = 'Score legend';
+                btn.textContent = 'i';
+                btn.onclick = (e) => { e.stopPropagation(); showScorePopover(e); };
+                btn.onmouseenter = (e) => showScorePopover(e);
+                el.style.display = 'inline-flex';
+                el.style.alignItems = 'center';
+                el.style.gap = '4px';
+                el.appendChild(btn);
+            }
+        });
+    }, 200);
 }
 
 // ── Cell Renderers ─────────────────────────────────────────────────────
@@ -1328,7 +1415,7 @@ function initHistoricalGrid() {
     const columnDefs = [
         {
             field: 'lead_score', headerName: 'Score',
-            width: 75, maxWidth: 75,
+            width: 90, minWidth: 80,
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
@@ -1347,7 +1434,7 @@ function initHistoricalGrid() {
         },
         {
             field: 'permit_type', headerName: 'Permit Type',
-            minWidth: 160, flex: 1.2,
+            minWidth: 120, flex: 0.8,
         },
         {
             field: 'permit_number', headerName: 'Permit #',
@@ -1398,6 +1485,7 @@ function initHistoricalGrid() {
             if (!historicalSourceFilter) return true;
             return node.data && node.data.source_name === historicalSourceFilter;
         },
+        onFirstDataRendered: () => _injectScoreInfoBtn(gridDiv),
     };
 
     const gridDiv = document.getElementById('historicalGrid');

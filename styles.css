@@ -171,6 +171,66 @@
 [data-theme="dark"] .score-medium { background: rgba(217,119,6,0.2); color: #fbbf24; }
 [data-theme="dark"] .score-low { background: rgba(107,114,128,0.2); color: #9ca3af; }
 
+/* ── Score Info Popover ─────────────────────────────────── */
+.score-info-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.score-info-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: #e5e7eb; color: #6b7280;
+    font-size: 10px; font-weight: 700; line-height: 1;
+    cursor: pointer; border: none; padding: 0;
+    margin-left: 4px; flex-shrink: 0;
+    transition: background 0.15s, color 0.15s;
+}
+.score-info-btn:hover { background: #059669; color: #fff; }
+[data-theme="dark"] .score-info-btn { background: #374151; color: #9ca3af; }
+[data-theme="dark"] .score-info-btn:hover { background: #059669; color: #fff; }
+
+.score-popover {
+    display: none; position: fixed; z-index: 9999;
+    width: 340px; padding: 16px 18px;
+    background: #fff; color: #1f2937;
+    border-radius: 12px; border: 1px solid #e5e7eb;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08);
+    font-size: 13px; line-height: 1.5;
+}
+.score-popover.show { display: block; }
+[data-theme="dark"] .score-popover {
+    background: #1f2937; color: #e5e7eb;
+    border-color: #374151;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+}
+.score-popover h4 {
+    margin: 0 0 10px; font-size: 14px; font-weight: 700;
+}
+.score-popover-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 5px 0;
+}
+.score-popover-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 52px; height: 22px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; text-align: center;
+}
+.score-popover-badge.sp-high  { background: #dcfce7; color: #166534; }
+.score-popover-badge.sp-med   { background: #fef3c7; color: #854d0e; }
+.score-popover-badge.sp-low   { background: #f3f4f6; color: #6b7280; }
+[data-theme="dark"] .score-popover-badge.sp-high { background: rgba(22,163,74,0.2); color: #4ade80; }
+[data-theme="dark"] .score-popover-badge.sp-med  { background: rgba(217,119,6,0.2); color: #fbbf24; }
+[data-theme="dark"] .score-popover-badge.sp-low  { background: rgba(107,114,128,0.2); color: #9ca3af; }
+.score-popover-label { font-size: 12px; }
+.score-popover-calc {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid #e5e7eb; font-size: 11px; color: #6b7280;
+}
+[data-theme="dark"] .score-popover-calc { border-top-color: #374151; color: #9ca3af; }
+.score-popover-calc strong { color: #374151; }
+[data-theme="dark"] .score-popover-calc strong { color: #d1d5db; }
+
 /* ── Badge "New" ────────────────────────────────────────── */
 .badge-new {
     display: inline-block; padding: 1px 6px; border-radius: 4px;

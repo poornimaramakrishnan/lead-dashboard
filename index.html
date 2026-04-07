@@ -187,7 +187,7 @@
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                 <div class="chart-card">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Score Distribution</h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">Score Distribution <button class="score-info-btn" onclick="showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></h3>
                     <div style="position:relative; height:160px;">
                         <canvas id="scoresChart"></canvas>
                     </div>
@@ -197,7 +197,7 @@
                     <div id="recentLeads" class="space-y-2 max-h-[160px] overflow-y-auto pr-2"></div>
                 </div>
                 <div class="chart-card">
-                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">🔥 Hot Leads <span class="text-xs font-normal text-gray-400">(Score 7+)</span></h3>
+                    <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4">🔥 Hot Leads <span class="text-xs font-normal text-gray-400">(Score 7+)</span> <button class="score-info-btn" onclick="showScorePopover(event)" onmouseenter="showScorePopover(event)" title="Score legend">i</button></h3>
                     <div id="hotLeads" class="space-y-2 max-h-[160px] overflow-y-auto pr-2"></div>
                 </div>
             </div>
