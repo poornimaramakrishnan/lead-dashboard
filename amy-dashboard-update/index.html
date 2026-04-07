@@ -171,7 +171,7 @@
             </div>
 
             <!-- Charts Grid -->
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6 items-stretch">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
                 <!-- Left Side: Charts -->
                 <div class="lg:col-span-6 flex flex-col gap-6">
                     <!-- A: Leads per Week (top-left) -->
@@ -209,12 +209,12 @@
 
                 <!-- Right Side: Recent and Hot Leads -->
                 <!-- D: Recent Leads -->
-                <div class="lg:col-span-3 chart-card flex flex-col min-h-[400px]">
+                <div class="lg:col-span-3 chart-card flex flex-col" style="max-height: 536px;">
                     <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4 flex-shrink-0">Recent Leads</h3>
                     <div id="recentLeads" class="overflow-y-auto pr-2 flex-1 space-y-2"></div>
                 </div>
                 <!-- E: Hot Leads -->
-                <div class="lg:col-span-3 chart-card flex flex-col min-h-[400px]">
+                <div class="lg:col-span-3 chart-card flex flex-col" style="max-height: 536px;">
                     <h3 class="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-4 flex-shrink-0">🔥 Hot Leads <span class="text-xs font-normal text-gray-400">(Score 7+)</span></h3>
                     <div id="hotLeads" class="overflow-y-auto pr-2 flex-1 space-y-2"></div>
                 </div>
