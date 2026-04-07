@@ -644,10 +644,13 @@ async function refreshData() {
                     localStorage.setItem('lastPipelineTriggerAt', now.toString());
                     showToast('Pipeline explicitly triggered! New leads will arrive in ~2-5 mins.', 'success', 8000);
                 } else {
-                    console.error('Failed to trigger daily pipeline:', await resp.text());
+                    const errText = await resp.text();
+                    console.error('Failed to trigger daily pipeline:', errText);
+                    showToast(`Pipeline trigger failed: ${errText.slice(0, 50)}`, 'error', 8000);
                 }
             } catch (err) {
                 console.error('Dispatch trigger error', err);
+                showToast('Pipeline trigger error (see console)', 'error', 8000);
             }
         }
     } else {
