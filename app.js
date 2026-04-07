@@ -694,6 +694,7 @@ function initLeadGrid() {
         {
             field: 'lead_score', headerName: 'Score',
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
+            cellStyle: { textAlign: 'center' },
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
@@ -1455,6 +1456,7 @@ function initHistoricalGrid() {
         {
             field: 'lead_score', headerName: 'Score',
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
+            cellStyle: { textAlign: 'center' },
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 0,
         },
