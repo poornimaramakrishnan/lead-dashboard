@@ -519,6 +519,7 @@ function onLeadsLoaded() {
     renderCharts();
     renderRecentLeads();
     renderHotLeads();
+    syncOverviewPanelHeight();
     updateNotifications();
     const badge = document.getElementById('leadCountBadge');
     if (badge) badge.textContent = recentLeads.length;
@@ -998,6 +999,7 @@ function exportCSV() {
     if (leadGridApi) {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
+            suppressBOM: true,
             columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
@@ -1015,6 +1017,7 @@ function exportSelected() {
     leadGridApi.exportDataAsCsv({
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
+        suppressBOM: true,
         columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
     });
 
@@ -1155,6 +1158,22 @@ function renderCharts() {
     renderSourcesChart();
     renderScoresChart();
 }
+
+// ── Overview panel height sync ─────────────────────────────────────────
+function syncOverviewPanelHeight() {
+    // On desktop (lg), measure the left charts column and set a CSS variable
+    // so the side panels match its height exactly.
+    const grid = document.getElementById('overviewGrid');
+    if (!grid || window.innerWidth < 1024) return;
+    const leftCol = grid.querySelector('.lg\\:col-span-6');
+    if (!leftCol) return;
+    requestAnimationFrame(() => {
+        const h = leftCol.offsetHeight;
+        if (h > 0) grid.style.setProperty('--overview-left-h', h + 'px');
+    });
+}
+// Re-sync on resize
+window.addEventListener('resize', syncOverviewPanelHeight);
 
 function getChartColors() {
     const dark = isDark();
