@@ -923,6 +923,21 @@ function computeLeadScore(lead) {
         score = Math.max(0, score - CONTRACTOR_PENALTY);
     }
 
+    // −3 DERM no-address penalty
+    // DERM records with no address cannot be geocoded or contacted — lower priority.
+    if (DERM_SOURCES.has((lead.source_name || '').toLowerCase()) && !(lead.address || '').trim()) {
+        score = Math.max(0, score - 3);
+    }
+
+    // −1 City of Miami "Intended Decision" penalty
+    // Pre-approval state — one point below a fully Approved permit.
+    if (
+        (lead.source_name || '').toLowerCase() === 'city_of_miami_tree' &&
+        (lead.permit_status || '').trim().toLowerCase() === 'intended decision'
+    ) {
+        score = Math.max(0, score - 1);
+    }
+
     return score;
 }
 

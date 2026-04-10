@@ -878,7 +878,9 @@ function _injectScoreInfoBtn(container) {
  *   +3  DERM permit 21–90 days old ("likely approved" Gold Key track)
  *   +2  Parcel larger than 0.5 acres
  *   +1  Right-of-way permit
+ *   −1  City of Miami Tree Permit with status "Intended Decision"
  *   −2  Contractor already assigned (Partnership Opportunity, not direct lead)
+ *   −3  DERM permit with no address (lower confidence)
  */
 function computeLeadScore(lead) {
     if (!lead) return 0;
@@ -959,6 +961,15 @@ function computeLeadScore(lead) {
     // DERM records with no address cannot be geocoded or contacted — lower priority.
     if (DERM_SOURCES.has((lead.source_name || '').toLowerCase()) && !(lead.address || '').trim()) {
         score = Math.max(0, score - 3);
+    }
+
+    // −1 City of Miami "Intended Decision" penalty
+    // Pre-approval state — one point below a fully Approved permit.
+    if (
+        (lead.source_name || '').toLowerCase() === 'city_of_miami_tree' &&
+        (lead.permit_status || '').trim().toLowerCase() === 'intended decision'
+    ) {
+        score = Math.max(0, score - 1);
     }
 
     return score;
