@@ -698,7 +698,13 @@ function initLeadGrid() {
             cellStyle: { textAlign: 'center' },
             valueGetter: (params) => computeLeadScore(params.data),
             cellRenderer: scoreRenderer,
-            sort: 'desc', sortIndex: 1,
+            sort: 'desc', sortIndex: 0,
+            comparator: (valA, valB, nodeA, nodeB) => {
+                if (valA !== valB) return valA - valB;
+                const pnA = (nodeA.data && nodeA.data.permit_number) || '';
+                const pnB = (nodeB.data && nodeB.data.permit_number) || '';
+                return pnA.localeCompare(pnB);
+            },
         },
         {
             field: 'address', headerName: 'Address',
@@ -713,7 +719,6 @@ function initLeadGrid() {
             field: 'permit_date', headerName: 'Date',
             width: 120, minWidth: 110,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
-            sort: 'desc', sortIndex: 0,
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
@@ -1406,7 +1411,8 @@ function renderRecentLeads() {
     if (!container) return;
 
     const recent = [...recentLeads]
-        .sort((a, b) => (b.permit_date || '').localeCompare(a.permit_date || ''))
+        .sort((a, b) => computeLeadScore(b) - computeLeadScore(a)
+                     || (b.permit_number || '').localeCompare(a.permit_number || ''))
         .slice(0, 20);
 
     if (recent.length === 0) {
@@ -1438,7 +1444,8 @@ function renderHotLeads() {
 
     const hot = [...recentLeads]
         .filter(l => computeLeadScore(l) >= 7)
-        .sort((a, b) => computeLeadScore(b) - computeLeadScore(a) || (b.permit_date || '').localeCompare(a.permit_date || ''))
+        .sort((a, b) => computeLeadScore(b) - computeLeadScore(a)
+                     || (b.permit_number || '').localeCompare(a.permit_number || ''))
         .slice(0, 20);
 
     if (hot.length === 0) {
@@ -1542,7 +1549,13 @@ function initHistoricalGrid() {
             cellStyle: { textAlign: 'center' },
             valueGetter: (params) => computeLeadScore(params.data),
             cellRenderer: scoreRenderer,
-            sort: 'desc', sortIndex: 1,
+            sort: 'desc', sortIndex: 0,
+            comparator: (valA, valB, nodeA, nodeB) => {
+                if (valA !== valB) return valA - valB;
+                const pnA = (nodeA.data && nodeA.data.permit_number) || '';
+                const pnB = (nodeB.data && nodeB.data.permit_number) || '';
+                return pnA.localeCompare(pnB);
+            },
         },
         {
             field: 'source_name', headerName: 'Source',
@@ -1570,7 +1583,6 @@ function initHistoricalGrid() {
             field: 'permit_date', headerName: 'Permit Date',
             width: 120, minWidth: 110,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
-            sort: 'desc', sortIndex: 0,
         },
         {
             field: 'permit_status', headerName: 'Permit Status',
