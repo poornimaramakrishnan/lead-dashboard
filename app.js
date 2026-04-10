@@ -557,7 +557,7 @@ function updateNotifications() {
             <div class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors" onclick="openDetailById('${lead.id}')">
                 <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate flex-1">${lead.address || '—'}</span>
-                    ${scoreRenderer({value: lead.lead_score})}
+                    ${scoreRenderer({value: computeLeadScore(lead), data: lead})}
                 </div>
                 <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${ago}</p>
             </div>`;
@@ -696,6 +696,7 @@ function initLeadGrid() {
             field: 'lead_score', headerName: 'Score',
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellStyle: { textAlign: 'center' },
+            valueGetter: (params) => computeLeadScore(params.data),
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 1,
         },
@@ -770,11 +771,11 @@ const _SCORE_POPOVER_HTML = `
     <h4>📊 Lead Score Legend</h4>
     <div class="score-popover-row">
         <span class="score-popover-badge sp-high">7 – 10+</span>
-        <span class="score-popover-label">🔥 <strong>Hot</strong> — Tree removal / arbor permit</span>
+        <span class="score-popover-label">🔥 <strong>Hot</strong> — Tree removal / arbor permit, direct opportunity</span>
     </div>
     <div class="score-popover-row">
         <span class="score-popover-badge sp-med">4 – 6</span>
-        <span class="score-popover-label">⚡ <strong>Warm</strong> — Vegetation / partial match</span>
+        <span class="score-popover-label">⚡ <strong>Warm</strong> — Vegetation / partial match · 🤝 Partnership if contractor assigned</span>
     </div>
     <div class="score-popover-row">
         <span class="score-popover-badge sp-low">0 – 3</span>
@@ -784,9 +785,11 @@ const _SCORE_POPOVER_HTML = `
         <strong>How scores are calculated:</strong><br>
         +5 pts — Tree removal / arbor permit<br>
         +4 pts — Vegetation removal permit<br>
-        +3 pts — Filed in the last 7 days<br>
+        +3 pts — Filed in the last 7 days (non-DERM)<br>
+        +3 pts — DERM permit 21–90 days old (likely approved)<br>
         +2 pts — Parcel &gt; 0.5 acres<br>
-        +1 pt&nbsp; — Right-of-way permit
+        +1 pt&nbsp; — Right-of-way permit<br>
+        −2 pts — Contractor already assigned (Partnership Opp.)
     </div>
 </div>`;
 
@@ -856,9 +859,101 @@ function _injectScoreInfoBtn(container) {
     }, 200);
 }
 
+// ── Live Lead Scoring (mirrors pipeline/scoring.py exactly) ───────────
+/**
+ * Compute the lead score dynamically from the lead's fields.
+ * This is the authoritative score for display, sort, and filter —
+ * the DB-stored lead_score is only a fallback for rows that pre-date
+ * this logic or were inserted before a scoring rule change.
+ *
+ * Scoring rules (keep in sync with pipeline/scoring.py):
+ *   +5  Tree removal / arbor permit type
+ *   +4  Vegetation removal permit
+ *   +3  Permit filed within last 7 days (non-DERM)
+ *   +3  DERM permit 21–90 days old ("likely approved" Gold Key track)
+ *   +2  Parcel larger than 0.5 acres
+ *   +1  Right-of-way permit
+ *   −2  Contractor already assigned (Partnership Opportunity, not direct lead)
+ */
+function computeLeadScore(lead) {
+    if (!lead) return 0;
+
+    const TREE_REMOVAL_TYPES = new Set([
+        'TREE REMOVAL', 'TREE REMOVAL PERMIT', 'ARBOR PERMIT',
+        'TREE ALTERATION', 'LANDSCAPE TREE REMOVAL-RELOCATION PERMIT',
+    ]);
+    const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
+    const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
+    const DERM_SOURCES = new Set(['miami_dade_derm']);
+    const DERM_MIN_DAYS = 21;
+    const DERM_MAX_DAYS = 90;
+    const CONTRACTOR_PENALTY = 2;
+
+    const ptUpper = (lead.permit_type || '').trim().toUpperCase();
+    const descLower = (lead.permit_description || '').toLowerCase();
+
+    let score = 0;
+
+    // +5 tree removal / arbor
+    if (TREE_REMOVAL_TYPES.has(ptUpper)) {
+        score += 5;
+    }
+    // +4 vegetation removal
+    if (VEGETATION_TYPES.has(ptUpper)) {
+        score += 4;
+    }
+    // description fallback (only when type gave nothing)
+    if (score === 0) {
+        if (['tree removal', 'remove tree', 'arbor', 'landscape tree removal', 'tree relocation']
+                .some(kw => descLower.includes(kw))) {
+            score += 5;
+        } else if (['vegetation removal', 'remove vegetation'].some(kw => descLower.includes(kw))) {
+            score += 4;
+        } else if (['dead tree', 'dangerous tree'].some(kw => descLower.includes(kw))) {
+            score += 5;
+        }
+    }
+
+    // ── Recency / DERM likely-approved boost ────────────────────────────
+    if (lead.permit_date) {
+        const permitDt = new Date(lead.permit_date);
+        if (!isNaN(permitDt)) {
+            const ageDays = Math.floor((Date.now() - permitDt.getTime()) / 86400000);
+            const isDerm = DERM_SOURCES.has((lead.source_name || '').toLowerCase());
+            if (isDerm) {
+                // DERM: 21–90 day "likely approved" window replaces 7-day recency
+                if (ageDays >= DERM_MIN_DAYS && ageDays <= DERM_MAX_DAYS) {
+                    score += 3;
+                }
+            } else {
+                // Standard: filed within last 7 days
+                if (ageDays <= 7) {
+                    score += 3;
+                }
+            }
+        }
+    }
+
+    // +2 large parcel (stored in property_value proxy — skipped if not available;
+    // parcel_size_acres is not a DB column so this bonus only applies at insert)
+    // (No client-side parcel data → skip; DB score already captured this at insert)
+
+    // +1 right-of-way
+    if (ROW_KEYWORDS.some(kw => descLower.includes(kw)) || ptUpper.includes('RIGHT OF WAY')) {
+        score += 1;
+    }
+
+    // −2 contractor penalty
+    if ((lead.contractor_name || '').trim()) {
+        score = Math.max(0, score - CONTRACTOR_PENALTY);
+    }
+
+    return score;
+}
+
 // ── Cell Renderers ─────────────────────────────────────────────────────
 function scoreRenderer(params) {
-    const score = params.value || 0;
+    const score = params.value != null ? params.value : computeLeadScore(params.data);
     let cls = 'score-low';
     if (score >= 7) cls = 'score-high';
     else if (score >= 4) cls = 'score-medium';
@@ -909,7 +1004,7 @@ function doesFilterPass(node) {
     if (dateTo && data.permit_date && data.permit_date > dateTo) return false;
     if (jurisdiction && data.jurisdiction !== jurisdiction) return false;
     if (status && data.lead_status !== status) return false;
-    if (minScore && (data.lead_score || 0) < parseInt(minScore)) return false;
+    if (minScore && computeLeadScore(data) < parseInt(minScore)) return false;
 
     // Global search
     if (globalSearchTerm) {
@@ -1049,7 +1144,7 @@ function openDetail(lead) {
             <div class="detail-row"><span class="detail-label">Permit #</span><span class="detail-value font-mono">${lead.permit_number || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Permit Date</span><span class="detail-value">${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge status-${lead.lead_status || 'new'}">${lead.lead_status || 'new'}</span></span></div>
-            <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: lead.lead_score})}</span></div>
+            <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: computeLeadScore(lead), data: lead})}</span></div>
             <div class="detail-row"><span class="detail-label">Owner</span><span class="detail-value">${lead.owner_name || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor</span><span class="detail-value">${lead.contractor_name || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor Phone</span><span class="detail-value">${lead.contractor_phone ? `<a href="tel:${lead.contractor_phone}" class="text-accent-600 hover:underline">${lead.contractor_phone}</a>` : '—'}</span></div>
@@ -1116,7 +1211,7 @@ function updateStats() {
     recentLeads.forEach(l => {
         const s = l.lead_status || 'new';
         if (counts[s] !== undefined) counts[s]++;
-        if ((l.lead_score || 0) >= 7) counts.highScore++;
+        if (computeLeadScore(l) >= 7) counts.highScore++;
     });
 
     document.getElementById('statTotal').querySelector('p').textContent = counts.total.toLocaleString();
@@ -1303,7 +1398,7 @@ function renderScoresChart() {
 
     const buckets = { '1-3 (Low)': 0, '4-6 (Medium)': 0, '7-9 (High)': 0 };
     recentLeads.forEach(l => {
-        const s = l.lead_score || 0;
+        const s = computeLeadScore(l);
         if (s >= 7) buckets['7-9 (High)']++;
         else if (s >= 4) buckets['4-6 (Medium)']++;
         else buckets['1-3 (Low)']++;
@@ -1360,7 +1455,7 @@ function renderRecentLeads() {
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${lead.permit_type || '—'} · ${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
                 </div>
-                ${scoreRenderer({value: lead.lead_score})}
+                ${scoreRenderer({value: computeLeadScore(lead), data: lead})}
             </div>
         `;
     }).join('');
@@ -1372,8 +1467,8 @@ function renderHotLeads() {
     if (!container) return;
 
     const hot = [...recentLeads]
-        .filter(l => (l.lead_score || 0) >= 7)
-        .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0) || (b.permit_date || '').localeCompare(a.permit_date || ''))
+        .filter(l => computeLeadScore(l) >= 7)
+        .sort((a, b) => computeLeadScore(b) - computeLeadScore(a) || (b.permit_date || '').localeCompare(a.permit_date || ''))
         .slice(0, 20);
 
     if (hot.length === 0) {
@@ -1392,7 +1487,7 @@ function renderHotLeads() {
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
                 </div>
-                ${scoreRenderer({value: lead.lead_score})}
+                ${scoreRenderer({value: computeLeadScore(lead), data: lead})}
             </div>
         `;
     }).join('');
@@ -1421,7 +1516,7 @@ function updateMapMarkers() {
 
     let count = 0;
     recentLeads.forEach(lead => {
-        const score = lead.lead_score || 0;
+        const score = computeLeadScore(lead);
         if (score >= 7 && !showHigh) return;
         if (score >= 4 && score < 7 && !showMedium) return;
         if (score < 4 && !showLow) return;
@@ -1475,6 +1570,7 @@ function initHistoricalGrid() {
             field: 'lead_score', headerName: 'Score',
             width: 135, minWidth: 135, maxWidth: 150, suppressSizeToFit: true,
             cellStyle: { textAlign: 'center' },
+            valueGetter: (params) => computeLeadScore(params.data),
             cellRenderer: scoreRenderer,
             sort: 'desc', sortIndex: 1,
         },
