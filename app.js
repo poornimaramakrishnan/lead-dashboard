@@ -890,8 +890,6 @@ function computeLeadScore(lead) {
     const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
     const DERM_SOURCES = new Set(['miami_dade_derm']);
-    const DERM_MIN_DAYS = 21;
-    const DERM_MAX_DAYS = 90;
     const CONTRACTOR_PENALTY = 2;
 
     const ptUpper = (lead.permit_type || '').trim().toUpperCase();
@@ -926,9 +924,13 @@ function computeLeadScore(lead) {
             const ageDays = Math.floor((Date.now() - permitDt.getTime()) / 86400000);
             const isDerm = DERM_SOURCES.has((lead.source_name || '').toLowerCase());
             if (isDerm) {
-                // DERM: 21–90 day "likely approved" window replaces 7-day recency
-                if (ageDays >= DERM_MIN_DAYS && ageDays <= DERM_MAX_DAYS) {
-                    score += 3;
+                // DERM tiered recency scoring to reduce hot leads
+                if (ageDays >= 1 && ageDays <= 10) {
+                    score += 1;
+                } else if (ageDays > 10 && ageDays <= 30) {
+                    score += 2;
+                } else if (ageDays > 30 && ageDays <= 60) {
+                    score += 1;
                 }
             } else {
                 // Standard: filed within last 7 days
