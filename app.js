@@ -955,6 +955,12 @@ function computeLeadScore(lead) {
         score = Math.max(0, score - CONTRACTOR_PENALTY);
     }
 
+    // −3 DERM no-address penalty
+    // DERM records with no address cannot be geocoded or contacted — lower priority.
+    if (DERM_SOURCES.has((lead.source_name || '').toLowerCase()) && !(lead.address || '').trim()) {
+        score = Math.max(0, score - 3);
+    }
+
     return score;
 }
 
