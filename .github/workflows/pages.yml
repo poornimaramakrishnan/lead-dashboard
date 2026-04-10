@@ -28,9 +28,9 @@ jobs:
         env:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          sed -i "s|{{SUPABASE_URL}}|${{ vars.SUPABASE_URL }}|g" amy-dashboard-update/app.js
-          sed -i "s|{{SUPABASE_KEY}}|${SUPABASE_KEY}|g" amy-dashboard-update/app.js
-          sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" amy-dashboard-update/app.js
+          sed -i "s|{{SUPABASE_URL}}|${{ vars.SUPABASE_URL }}|g" app.js
+          sed -i "s|{{SUPABASE_KEY}}|${SUPABASE_KEY}|g" app.js
+          sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" app.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -38,7 +38,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'amy-dashboard-update'
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
