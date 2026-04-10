@@ -867,18 +867,7 @@ function _injectScoreInfoBtn(container) {
 // ── Live Lead Scoring (mirrors pipeline/scoring.py exactly) ───────────
 /**
  * Compute the lead score dynamically from the lead's fields.
- * This is the authoritative score for display, sort, and filter —
- * the DB-stored lead_score is only a fallback for rows that pre-date
- * this logic or were inserted before a scoring rule change.
- *
- * Scoring rules (keep in sync with pipeline/scoring.py):
- *   +5  Tree removal / arbor permit type
- *   +4  Vegetation removal permit
- *   +3  Permit filed within last 7 days (non-DERM)
- *   +3  DERM permit 21–90 days old ("likely approved" Gold Key track)
- *   +2  Parcel larger than 0.5 acres
- *   +1  Right-of-way permit
- *   −2  Contractor already assigned (Partnership Opportunity, not direct lead)
+ * See pipeline/scoring.py for the canonical source of truth.
  */
 function computeLeadScore(lead) {
     if (!lead) return 0;
@@ -890,6 +879,8 @@ function computeLeadScore(lead) {
     const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
     const DERM_SOURCES = new Set(['miami_dade_derm']);
+    const DERM_MIN_DAYS = 21;
+    const DERM_MAX_DAYS = 90;
     const CONTRACTOR_PENALTY = 2;
 
     const ptUpper = (lead.permit_type || '').trim().toUpperCase();
@@ -897,15 +888,9 @@ function computeLeadScore(lead) {
 
     let score = 0;
 
-    // +5 tree removal / arbor
-    if (TREE_REMOVAL_TYPES.has(ptUpper)) {
-        score += 5;
-    }
-    // +4 vegetation removal
-    if (VEGETATION_TYPES.has(ptUpper)) {
-        score += 4;
-    }
-    // description fallback (only when type gave nothing)
+    if (TREE_REMOVAL_TYPES.has(ptUpper)) score += 5;
+    if (VEGETATION_TYPES.has(ptUpper)) score += 4;
+
     if (score === 0) {
         if (['tree removal', 'remove tree', 'arbor', 'landscape tree removal', 'tree relocation']
                 .some(kw => descLower.includes(kw))) {
@@ -917,48 +902,25 @@ function computeLeadScore(lead) {
         }
     }
 
-    // ── Recency / DERM likely-approved boost ────────────────────────────
     if (lead.permit_date) {
         const permitDt = new Date(lead.permit_date);
         if (!isNaN(permitDt)) {
             const ageDays = Math.floor((Date.now() - permitDt.getTime()) / 86400000);
             const isDerm = DERM_SOURCES.has((lead.source_name || '').toLowerCase());
             if (isDerm) {
-                // DERM tiered recency scoring to reduce hot leads
-                if (ageDays >= 1 && ageDays <= 10) {
-                    score += 1;
-                } else if (ageDays > 10 && ageDays <= 30) {
-                    score += 2;
-                } else if (ageDays > 30 && ageDays <= 60) {
-                    score += 1;
-                }
+                if (ageDays >= DERM_MIN_DAYS && ageDays <= DERM_MAX_DAYS) score += 3;
             } else {
-                // Standard: filed within last 7 days
-                if (ageDays <= 7) {
-                    score += 3;
-                }
+                if (ageDays <= 7) score += 3;
             }
         }
     }
 
-    // +2 large parcel (stored in property_value proxy — skipped if not available;
-    // parcel_size_acres is not a DB column so this bonus only applies at insert)
-    // (No client-side parcel data → skip; DB score already captured this at insert)
-
-    // +1 right-of-way
     if (ROW_KEYWORDS.some(kw => descLower.includes(kw)) || ptUpper.includes('RIGHT OF WAY')) {
         score += 1;
     }
 
-    // −2 contractor penalty
     if ((lead.contractor_name || '').trim()) {
         score = Math.max(0, score - CONTRACTOR_PENALTY);
-    }
-
-    // −3 DERM no-address penalty
-    // DERM records with no address cannot be geocoded or contacted — lower priority.
-    if (DERM_SOURCES.has((lead.source_name || '').toLowerCase()) && !(lead.address || '').trim()) {
-        score = Math.max(0, score - 3);
     }
 
     return score;
