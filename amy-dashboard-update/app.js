@@ -873,8 +873,8 @@ function computeLeadScore(lead) {
     if (!lead) return 0;
 
     const TREE_REMOVAL_TYPES = new Set([
-        'TREE REMOVAL', 'TREE REMOVAL PERMIT', 'ARBOR PERMIT',
-        'TREE ALTERATION', 'LANDSCAPE TREE REMOVAL-RELOCATION PERMIT',
+        'TREE REMOVAL', 'TREE REMOVAL PERMIT', 'TREE PERMIT',
+        'ARBOR PERMIT', 'TREE ALTERATION', 'LANDSCAPE TREE REMOVAL-RELOCATION PERMIT',
     ]);
     const VEGETATION_TYPES = new Set(['VEGETATION REMOVAL']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
