@@ -1501,8 +1501,13 @@ function renderRecentLeads() {
     if (!container) return;
 
     const recent = [...recentLeads]
-        .sort((a, b) => computeLeadScore(b) - computeLeadScore(a)
-                     || (b.permit_number || '').localeCompare(a.permit_number || ''))
+        .sort((a, b) => {
+            // Sort by recency: discovered_at first, fallback to permit_date
+            const dateA = a.discovered_at || a.permit_date || '';
+            const dateB = b.discovered_at || b.permit_date || '';
+            return dateB.localeCompare(dateA)
+                || (b.permit_number || '').localeCompare(a.permit_number || '');
+        })
         .slice(0, 20);
 
     if (recent.length === 0) {
