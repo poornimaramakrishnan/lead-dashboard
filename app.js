@@ -504,13 +504,13 @@ async function loadLeads() {
         }
 
         // ── Query 1: All recent leads — use permit_date as the 90-day signal ──
+        // Note: leads with no address (e.g. DERM no-address) are intentionally included
+        // so they appear in score distribution charts. The map skips them via getLeadCoords().
         const allRecent = await fetchAllPages((from, to) =>
             supabaseClient
                 .from('leads')
                 .select('*')
                 .gte('permit_date', cutoffDate)
-                .not('address', 'is', null)
-                .neq('address', '')
                 .order('permit_date', { ascending: false })
                 .range(from, to)
         );
