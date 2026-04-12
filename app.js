@@ -38,7 +38,7 @@ let currentDetailLead = null;
 let leafletMap = null;
 let mapMarkers = [];
 let chartTimeline = null;
-let chartSources = null;
+let chartFreshness = null;
 let chartScores = null;
 let globalSearchTerm = '';
 let historicalSourceFilter = '';  // '' = all, else source_name value
@@ -1334,7 +1334,7 @@ function switchTab(tab) {
 // ── Charts (Overview Tab) ──────────────────────────────────────────────
 function renderCharts() {
     renderTimelineChart();
-    renderSourcesChart();
+    renderFreshnessChart();
     renderScoresChart();
 }
 
@@ -1372,7 +1372,7 @@ function renderTimelineChart() {
     cutoff.setDate(cutoff.getDate() - 90);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-    // Source order & colors — must match the donut chart
+    // Source order & colors — consistent across all charts
     const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
     const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6' };
 
@@ -1457,32 +1457,73 @@ function getWeekStart(dateStr) {
     return d.toISOString().slice(0, 10);
 }
 
-function renderSourcesChart() {
-    const ctx = document.getElementById('sourcesChart');
+function renderFreshnessChart() {
+    const ctx = document.getElementById('freshnessChart');
     if (!ctx) return;
 
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const AGE_BUCKETS = [
+        { key: '0-30d',   label: '< 30 days',  max: 30,  color: '#22c55e' },
+        { key: '31-90d',  label: '31-90 days',  max: 90,  color: '#fbbf24' },
+        { key: '91-180d', label: '91-180 days', max: 180, color: '#f97316' },
+        { key: '180d+',   label: '> 180 days',  max: Infinity, color: '#ef4444' },
+    ];
+
+    const now = Date.now();
     const bySrc = {};
+    SOURCE_ORDER.forEach(s => { bySrc[s] = {}; AGE_BUCKETS.forEach(b => bySrc[s][b.key] = 0); });
+
     recentLeads.forEach(l => {
-        const s = formatSourceName(l.source_name);
-        bySrc[s] = (bySrc[s] || 0) + 1;
+        const src = l.source_name || 'unknown';
+        if (!bySrc[src]) return;
+        const pd = l.permit_date ? new Date(l.permit_date) : null;
+        if (!pd || isNaN(pd)) return;
+        const ageDays = Math.floor((now - pd.getTime()) / 86400000);
+        for (const b of AGE_BUCKETS) {
+            if (ageDays <= b.max || b.max === Infinity) { bySrc[src][b.key]++; break; }
+        }
     });
 
-    const labels = Object.keys(bySrc);
-    const data = Object.values(bySrc);
-    const bgColors = ['#059669', '#3b82f6', '#f59e0b', '#8b5cf6'];
-    const colors = getChartColors();
+    const labels = SOURCE_ORDER.map(formatSourceName);
+    const datasets = AGE_BUCKETS.map(b => ({
+        label: b.label,
+        data: SOURCE_ORDER.map(s => bySrc[s][b.key]),
+        backgroundColor: b.color,
+        borderRadius: 2,
+        borderSkipped: false,
+    }));
 
-    if (chartSources) chartSources.destroy();
-    chartSources = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels,
-            datasets: [{ data, backgroundColor: bgColors.slice(0, labels.length), borderWidth: 0 }],
-        },
+    const colors = getChartColors();
+    if (chartFreshness) chartFreshness.destroy();
+    chartFreshness = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
         options: {
-            responsive: true, maintainAspectRatio: false,
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'bottom', labels: { color: colors.text, padding: 16, font: { size: 11 } } },
+                legend: { position: 'bottom', labels: { color: colors.text, padding: 8, boxWidth: 10, font: { size: 9 } } },
+                tooltip: {
+                    callbacks: {
+                        footer: (items) => {
+                            const total = items.reduce((s, i) => s + i.raw, 0);
+                            return `Total: ${total}`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    ticks: { color: colors.text, font: { size: 9 }, precision: 0 },
+                    grid: { color: colors.grid },
+                },
+                y: {
+                    stacked: true,
+                    ticks: { color: colors.text, font: { size: 10 } },
+                    grid: { display: false },
+                },
             },
         },
     });
@@ -2271,6 +2312,20 @@ function toggleLegendPreview() {
     if (btn) btn.setAttribute('aria-expanded', !isCollapsed);
 }
 
+/** Debounced live preview — refresh grids + charts when scoring rules change */
+let _scoringPreviewTimer = null;
+function _debouncedScoringPreview() {
+    if (_scoringPreviewTimer) clearTimeout(_scoringPreviewTimer);
+    _scoringPreviewTimer = setTimeout(() => {
+        // Re-compute scores in the grids (immediate visual feedback)
+        if (leadGridApi) leadGridApi.refreshCells({ columns: ['lead_score'], force: true });
+        if (historicalGridApi) historicalGridApi.refreshCells({ columns: ['lead_score'], force: true });
+        // Re-render overview charts that depend on scores
+        try { renderScoresChart(); } catch(e) {}
+        try { renderOverviewStats(); } catch(e) {}
+    }, 300);
+}
+
 /** Step a rule value by +/- delta, clamped to its defined range */
 function stepRule(key, delta) {
     const meta = SCORING_META[key];
@@ -2297,6 +2352,7 @@ function stepRule(key, delta) {
     scoringRulesDirty = true;
     _updateSaveBtn(true);
     renderScoringLegendPreview();
+    _debouncedScoringPreview();
 }
 
 /** Handle manual input change (for DERM tier day range inputs) */
@@ -2313,6 +2369,7 @@ function onRuleInputChange(key, inputEl) {
     scoringRulesDirty = true;
     _updateSaveBtn(true);
     renderScoringLegendPreview();
+    _debouncedScoringPreview();
 }
 
 /** Visual indicator on the save button */
