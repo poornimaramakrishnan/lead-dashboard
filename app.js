@@ -59,6 +59,7 @@ const SCORING_DEFAULTS = {
     large_parcel_bonus: 2,
     parcel_acres_threshold: 0.50,
     right_of_way_bonus: 1,
+    contact_info_bonus: 1,
     derm_tier1_days_min: 1,
     derm_tier1_days_max: 10,
     derm_tier1_bonus: 1,
@@ -91,6 +92,7 @@ const SCORING_META = {
     large_parcel_bonus:              [0, 10, 1, false],
     parcel_acres_threshold:          [0.10, 50.00, 0.10, true],
     right_of_way_bonus:              [0, 10, 1, false],
+    contact_info_bonus:              [0, 10, 1, false],
     derm_tier1_days_min:             [0, 365, 1, false],
     derm_tier1_days_max:             [1, 365, 1, false],
     derm_tier1_bonus:                [0, 10, 1, false],
@@ -841,6 +843,17 @@ function initLeadGrid() {
             cellRenderer: statusRenderer,
         },
         {
+            headerName: 'Map', colId: 'google_maps_url',
+            width: 60, minWidth: 55, suppressSizeToFit: true,
+            sortable: false, filter: false,
+            cellStyle: { textAlign: 'center' },
+            valueGetter: (p) => googleMapsUrl(p.data.address, p.data.source_name),
+            cellRenderer: (p) => {
+                if (!p.value) return '<span style="color:#d1d5db">—</span>';
+                return `<a href="${p.value}" target="_blank" rel="noopener" title="Open in Google Maps" style="font-size:16px;text-decoration:none">📍</a>`;
+            },
+        },
+        {
             headerName: 'Actions', width: 110, minWidth: 100,
             pinned: 'right', suppressSizeToFit: true,
             cellRenderer: actionsRenderer,
@@ -1092,6 +1105,11 @@ function computeLeadScore(lead) {
         score = Math.max(0, score - r.corrections_required_penalty);
     }
 
+    // Contact info bonus (+1 when owner_phone or owner_email is populated)
+    if ((lead.owner_phone || '').trim() || (lead.owner_email || '').trim()) {
+        score += r.contact_info_bonus;
+    }
+
     return score;
 }
 
@@ -1102,6 +1120,23 @@ function scoreRenderer(params) {
     if (score >= 7) cls = 'score-high';
     else if (score >= 4) cls = 'score-medium';
     return `<span class="score-badge ${cls}">${score}</span>`;
+}
+
+// ── Google Maps URL builder (mirrors pipeline/notifications.py _google_maps_url) ──
+const _SOURCE_GEO_SUFFIX = {
+    city_of_miami: 'Miami, FL',
+    city_of_miami_tree: 'Miami, FL',
+    fort_lauderdale: 'Fort Lauderdale, FL',
+    miami_dade_derm: 'Miami-Dade County, FL',
+};
+
+function googleMapsUrl(address, sourceName) {
+    const addr = (address || '').trim();
+    if (!addr || addr === '—') return '';
+    const upper = addr.toUpperCase();
+    const hasGeo = [', FL', ', FLORIDA', 'MIAMI', 'FORT LAUDERDALE', 'DADE'].some(t => upper.includes(t));
+    const full = hasGeo ? addr : `${addr}, ${_SOURCE_GEO_SUFFIX[sourceName] || 'South Florida'}`;
+    return `https://www.google.com/maps/search/${encodeURIComponent(full)}`;
 }
 
 function addressRenderer(params) {
@@ -1239,7 +1274,7 @@ function exportCSV() {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
         });
         showToast('CSV exported');
     }
@@ -1257,7 +1292,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
     });
 
     // Mark as exported in db
@@ -1278,7 +1313,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url','google_maps_url'],
         });
         showToast('Historical CSV exported');
     }
@@ -1291,9 +1326,14 @@ function openDetail(lead) {
         ? (typeof lead.raw_payload_json === 'string' ? JSON.parse(lead.raw_payload_json) : lead.raw_payload_json)
         : {};
 
+    const mapsUrl = googleMapsUrl(lead.address, lead.source_name);
+    const addressHtml = lead.address
+        ? (mapsUrl ? `<a href="${mapsUrl}" target="_blank" rel="noopener" class="text-accent-600 hover:underline" title="Open in Google Maps">${lead.address} 📍</a>` : lead.address)
+        : '—';
+
     const html = `
         <div class="space-y-0">
-            <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value font-semibold">${lead.address || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value font-semibold">${addressHtml}</span></div>
             <div class="detail-row"><span class="detail-label">Jurisdiction</span><span class="detail-value">${lead.jurisdiction || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Permit Type</span><span class="detail-value">${lead.permit_type || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${lead.permit_description || '—'}</span></div>
@@ -1886,6 +1926,17 @@ function initHistoricalGrid() {
             width: 160, minWidth: 140,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleString() : '—',
         },
+        {
+            headerName: 'Map', colId: 'google_maps_url',
+            width: 60, minWidth: 55, suppressSizeToFit: true,
+            sortable: false, filter: false,
+            cellStyle: { textAlign: 'center' },
+            valueGetter: (p) => googleMapsUrl(p.data.address, p.data.source_name),
+            cellRenderer: (p) => {
+                if (!p.value) return '<span style="color:#d1d5db">—</span>';
+                return `<a href="${p.value}" target="_blank" rel="noopener" title="Open in Google Maps" style="font-size:16px;text-decoration:none">📍</a>`;
+            },
+        },
     ];
 
     const gridOptions = {
@@ -2362,8 +2413,8 @@ function renderScoringLegendPreview() {
     if (!el) return;
 
     // Calculate theoretical max score
-    const maxGeneral = r.tree_removal_bonus + r.recency_tier1_bonus + r.large_parcel_bonus + r.right_of_way_bonus;
-    const maxDerm  = r.tree_removal_bonus + Math.max(r.derm_tier1_bonus, r.derm_tier2_bonus, r.derm_tier3_bonus) + r.large_parcel_bonus + r.right_of_way_bonus;
+    const maxGeneral = r.tree_removal_bonus + r.recency_tier1_bonus + r.large_parcel_bonus + r.right_of_way_bonus + r.contact_info_bonus;
+    const maxDerm  = r.tree_removal_bonus + Math.max(r.derm_tier1_bonus, r.derm_tier2_bonus, r.derm_tier3_bonus) + r.large_parcel_bonus + r.right_of_way_bonus + r.contact_info_bonus;
     const maxScore = Math.max(maxGeneral, maxDerm);
     const badgeEl = document.getElementById('legendMaxScore');
     if (badgeEl) badgeEl.textContent = `Max ${maxScore} pts`;
@@ -2376,6 +2427,7 @@ function renderScoringLegendPreview() {
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus}</span> <span class="legend-label">Landscape / ROW</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.large_parcel_bonus}</span> <span class="legend-label">Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} ac</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.right_of_way_bonus}</span> <span class="legend-label">Right-of-way</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.contact_info_bonus}</span> <span class="legend-label">Contact info found</span></div>
         </div>
         <div class="legend-group">
             <div class="legend-group-title title-recency">General Recency</div>
