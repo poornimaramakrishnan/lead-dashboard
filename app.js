@@ -777,30 +777,67 @@ function initLeadGrid() {
         },
         {
             field: 'address', headerName: 'Address',
-            minWidth: 150, flex: 1,
+            minWidth: 130, flex: 1,
             cellRenderer: addressRenderer,
         },
         {
+            field: 'owner_name', headerName: 'Owner',
+            width: 140, minWidth: 110,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
+        },
+        {
             field: 'permit_type', headerName: 'Permit Type',
-            minWidth: 120, flex: 0.8,
+            minWidth: 110, flex: 0.7,
+            cellStyle: { fontSize: '12px' },
+        },
+        {
+            field: 'permit_description', headerName: 'Description',
+            width: 160, minWidth: 120,
+            cellStyle: { fontSize: '11px', color: '#6b7280' },
+            valueFormatter: (p) => p.value || '—',
         },
         {
             field: 'permit_date', headerName: 'Date',
-            width: 120, minWidth: 110,
+            width: 100, minWidth: 90,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
-            width: 150, minWidth: 130,
+            width: 130, minWidth: 110,
         },
         {
             field: 'source_name', headerName: 'Source',
-            width: 145, minWidth: 130,
+            width: 130, minWidth: 110,
             valueFormatter: (p) => formatSourceName(p.value),
         },
         {
+            field: 'contractor_name', headerName: 'Contractor',
+            width: 140, minWidth: 110,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
+        },
+        {
+            field: 'contractor_phone', headerName: 'Contr. Phone',
+            width: 120, minWidth: 100,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
+        },
+        {
+            field: 'owner_phone', headerName: 'Owner Phone',
+            width: 120, minWidth: 100,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
+        },
+        {
+            field: 'owner_email', headerName: 'Owner Email',
+            width: 160, minWidth: 120,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
+        },
+        {
             field: 'lead_status', headerName: 'Status',
-            width: 110, minWidth: 100,
+            width: 100, minWidth: 90,
             cellRenderer: statusRenderer,
         },
         {
@@ -1116,7 +1153,7 @@ function doesFilterPass(node) {
     // Global search
     if (globalSearchTerm) {
         const search = globalSearchTerm.toLowerCase();
-        const haystack = [data.address, data.permit_type, data.contractor_name, data.owner_name, data.permit_number, data.jurisdiction]
+        const haystack = [data.address, data.permit_type, data.permit_description, data.contractor_name, data.contractor_phone, data.owner_name, data.owner_phone, data.owner_email, data.permit_number, data.jurisdiction]
             .filter(Boolean).join(' ').toLowerCase();
         if (!haystack.includes(search)) return false;
     }
@@ -1768,54 +1805,76 @@ function initHistoricalGrid() {
         },
         {
             field: 'source_name', headerName: 'Source',
-            width: 155, minWidth: 130,
+            width: 140, minWidth: 110,
             valueFormatter: (p) => formatSourceName(p.value),
         },
         {
             field: 'address', headerName: 'Address',
-            minWidth: 180, flex: 1.5,
+            minWidth: 150, flex: 1.2,
             cellRenderer: (params) => {
                 const addr = params.value || '<em class="text-gray-400">No address</em>';
                 return `<span style="cursor:pointer;color:var(--ag-foreground-color)" class="hover:underline" onclick="openDetailById('${params.data.id}')">${addr}</span>`;
             },
         },
         {
+            field: 'owner_name', headerName: 'Owner',
+            width: 140, minWidth: 110,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
+        },
+        {
             field: 'permit_type', headerName: 'Permit Type',
-            minWidth: 120, flex: 0.8,
+            minWidth: 110, flex: 0.7,
+            cellStyle: { fontSize: '12px' },
+        },
+        {
+            field: 'permit_description', headerName: 'Description',
+            width: 150, minWidth: 110,
+            cellStyle: { fontSize: '11px', color: '#6b7280' },
+            valueFormatter: (p) => p.value || '—',
         },
         {
             field: 'permit_number', headerName: 'Permit #',
-            width: 150, minWidth: 130,
-            cellStyle: { fontFamily: 'JetBrains Mono, monospace', fontSize: '12px' },
+            width: 130, minWidth: 110,
+            cellStyle: { fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' },
         },
         {
-            field: 'permit_date', headerName: 'Permit Date',
-            width: 120, minWidth: 110,
+            field: 'permit_date', headerName: 'Date',
+            width: 100, minWidth: 90,
             valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
         },
         {
             field: 'permit_status', headerName: 'Permit Status',
-            width: 130, minWidth: 110,
+            width: 110, minWidth: 90,
+            cellStyle: { fontSize: '12px' },
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
-            width: 150, minWidth: 130,
+            width: 130, minWidth: 110,
         },
         {
             field: 'contractor_name', headerName: 'Contractor',
-            width: 160, minWidth: 130,
+            width: 140, minWidth: 110,
+            cellStyle: { fontSize: '12px' },
+            valueFormatter: (p) => p.value || '—',
         },
         {
-            field: 'contractor_phone', headerName: 'Contractor Phone',
-            width: 140, minWidth: 120, hide: true,
+            field: 'contractor_phone', headerName: 'Contr. Phone',
+            width: 120, minWidth: 100,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'owner_phone', headerName: 'Owner Phone',
-            width: 140, minWidth: 120, hide: true,
+            width: 120, minWidth: 100,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="tel:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'owner_email', headerName: 'Owner Email',
-            width: 180, minWidth: 140, hide: true,
+            width: 160, minWidth: 120,
+            cellStyle: { fontSize: '11px' },
+            cellRenderer: (p) => p.value ? `<a href="mailto:${p.value}" style="color:#059669;text-decoration:none">${p.value}</a>` : '<span style="color:#d1d5db">—</span>',
         },
         {
             field: 'lead_status', headerName: 'Status',

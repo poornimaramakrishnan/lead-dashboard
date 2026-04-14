@@ -138,9 +138,9 @@
 /* ── AG Grid Custom Theme ───────────────────────────────── */
 .ag-theme-custom {
     --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    --ag-font-size: 13px;
-    --ag-row-height: 44px;
-    --ag-header-height: 44px;
+    --ag-font-size: 12px;
+    --ag-row-height: 38px;
+    --ag-header-height: 40px;
     --ag-borders: none;
     --ag-border-color: #f3f4f6;
     --ag-header-background-color: #f8fafc;
@@ -154,6 +154,16 @@
     --ag-header-cell-hover-background-color: #f1f5f9;
     --ag-range-selection-border-color: #059669;
 }
+/* Clickable contact links in grid cells */
+.ag-theme-custom .ag-cell a[href^="tel:"],
+.ag-theme-custom .ag-cell a[href^="mailto:"] {
+    transition: color 0.15s, text-decoration 0.15s;
+}
+.ag-theme-custom .ag-cell a[href^="tel:"]:hover,
+.ag-theme-custom .ag-cell a[href^="mailto:"]:hover {
+    color: #047857 !important;
+    text-decoration: underline;
+}
 [data-theme="dark"] .ag-theme-custom {
     --ag-header-background-color: #0f172a;
     --ag-odd-row-background-color: #0f172a;
@@ -166,7 +176,11 @@
     --ag-selected-row-background-color: rgba(52,211,153,0.1);
     --ag-header-cell-hover-background-color: #1e293b;
 }
-.ag-theme-custom .ag-header-cell-label { font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.05em; }
+[data-theme="dark"] .ag-theme-custom .ag-cell a[href^="tel:"]:hover,
+[data-theme="dark"] .ag-theme-custom .ag-cell a[href^="mailto:"]:hover {
+    color: #34d399 !important;
+}
+.ag-theme-custom .ag-header-cell-label { font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
 .ag-theme-custom .ag-paging-panel { border-top: 1px solid var(--ag-border-color); padding: 8px 16px; }
 
 /* ── AG Grid Pagination — mobile-friendly ───────────────── */
