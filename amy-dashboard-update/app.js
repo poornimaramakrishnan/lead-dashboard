@@ -1202,7 +1202,7 @@ function exportCSV() {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
     }
@@ -1220,7 +1220,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
     });
 
     // Mark as exported in db
@@ -1241,7 +1241,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
         });
         showToast('Historical CSV exported');
     }
@@ -1265,6 +1265,8 @@ function openDetail(lead) {
             <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge status-${lead.lead_status || 'new'}">${lead.lead_status || 'new'}</span></span></div>
             <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: computeLeadScore(lead), data: lead})}</span></div>
             <div class="detail-row"><span class="detail-label">Owner</span><span class="detail-value">${lead.owner_name || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Owner Phone</span><span class="detail-value">${lead.owner_phone ? `<a href="tel:${lead.owner_phone}" class="text-accent-600 hover:underline">${lead.owner_phone}</a>` : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Owner Email</span><span class="detail-value">${lead.owner_email ? `<a href="mailto:${lead.owner_email}" class="text-accent-600 hover:underline">${lead.owner_email}</a>` : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor</span><span class="detail-value">${lead.contractor_name || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor Phone</span><span class="detail-value">${lead.contractor_phone ? `<a href="tel:${lead.contractor_phone}" class="text-accent-600 hover:underline">${lead.contractor_phone}</a>` : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Source</span><span class="detail-value">${formatSourceName(lead.source_name)}</span></div>
@@ -1804,6 +1806,18 @@ function initHistoricalGrid() {
             width: 160, minWidth: 130,
         },
         {
+            field: 'contractor_phone', headerName: 'Contractor Phone',
+            width: 140, minWidth: 120, hide: true,
+        },
+        {
+            field: 'owner_phone', headerName: 'Owner Phone',
+            width: 140, minWidth: 120, hide: true,
+        },
+        {
+            field: 'owner_email', headerName: 'Owner Email',
+            width: 180, minWidth: 140, hide: true,
+        },
+        {
             field: 'lead_status', headerName: 'Status',
             width: 100, minWidth: 90,
             cellRenderer: statusRenderer,
@@ -2297,32 +2311,32 @@ function renderScoringLegendPreview() {
 
     el.innerHTML = `
         <div class="legend-group">
-            <div class="legend-group-title">Bonuses</div>
+            <div class="legend-group-title title-bonus">Bonuses</div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.tree_removal_bonus}</span> <span class="legend-label">Tree removal / arbor</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.vegetation_removal_bonus}</span> <span class="legend-label">Vegetation removal</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus}</span> <span class="legend-label">Landscape / ROW landscaping</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.landscape_installation_bonus}</span> <span class="legend-label">Landscape / ROW</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.large_parcel_bonus}</span> <span class="legend-label">Parcel &gt; ${r.parcel_acres_threshold.toFixed(2)} ac</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-bonus">+${r.right_of_way_bonus}</span> <span class="legend-label">Right-of-way</span></div>
         </div>
         <div class="legend-group">
-            <div class="legend-group-title">General Recency (non-DERM)</div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier1_bonus}</span> <span class="legend-label">Hot · 0–${r.recency_tier1_days_max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier2_bonus}</span> <span class="legend-label">Warm · ${r.recency_tier1_days_max + 1}–${r.recency_tier2_days_max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier3_bonus}</span> <span class="legend-label">Aging · ${r.recency_tier2_days_max + 1}–${r.recency_tier3_days_max} days</span></div>
+            <div class="legend-group-title title-recency">General Recency</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier1_bonus}</span> <span class="legend-label">Hot · 0–${r.recency_tier1_days_max}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier2_bonus}</span> <span class="legend-label">Warm · ${r.recency_tier1_days_max + 1}–${r.recency_tier2_days_max}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.recency_tier3_bonus}</span> <span class="legend-label">Aging · ${r.recency_tier2_days_max + 1}–${r.recency_tier3_days_max}d</span></div>
         </div>
         <div class="legend-group">
-            <div class="legend-group-title">DERM Tiered Recency</div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier1_bonus}</span> <span class="legend-label">Tier 1 · ${r.derm_tier1_days_min}–${r.derm_tier1_days_max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier2_bonus}</span> <span class="legend-label">Tier 2 · ${r.derm_tier2_days_min}–${r.derm_tier2_days_max} days</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier3_bonus}</span> <span class="legend-label">Tier 3 · ${r.derm_tier3_days_min}–${r.derm_tier3_days_max} days</span></div>
+            <div class="legend-group-title title-derm">DERM Recency</div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier1_bonus}</span> <span class="legend-label">T1 · ${r.derm_tier1_days_min}–${r.derm_tier1_days_max}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier2_bonus}</span> <span class="legend-label">T2 · ${r.derm_tier2_days_min}–${r.derm_tier2_days_max}d</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-tier">+${r.derm_tier3_bonus}</span> <span class="legend-label">T3 · ${r.derm_tier3_days_min}–${r.derm_tier3_days_max}d</span></div>
         </div>
         <div class="legend-group">
-            <div class="legend-group-title">Penalties</div>
+            <div class="legend-group-title title-penalty">Penalties</div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.contractor_penalty}</span> <span class="legend-label">Contractor assigned</span></div>
             <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.derm_no_address_penalty}</span> <span class="legend-label">DERM no address</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision (pre-approval)</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.corrections_required_penalty}</span> <span class="legend-label">Corrections Required (stuck)</span></div>
-            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.staleness_penalty}</span> <span class="legend-label">Stale permit (&gt; ${r.staleness_days_threshold} days)</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.intended_decision_penalty}</span> <span class="legend-label">Intended Decision</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.corrections_required_penalty}</span> <span class="legend-label">Corrections Req'd</span></div>
+            <div class="legend-item"><span class="legend-chip legend-chip-penalty">−${r.staleness_penalty}</span> <span class="legend-label">Stale (&gt; ${r.staleness_days_threshold}d)</span></div>
         </div>
     `;
 }

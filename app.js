@@ -1202,7 +1202,7 @@ function exportCSV() {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
     }
@@ -1220,7 +1220,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
     });
 
     // Mark as exported in db
@@ -1241,7 +1241,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
         });
         showToast('Historical CSV exported');
     }
@@ -1265,6 +1265,8 @@ function openDetail(lead) {
             <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge status-${lead.lead_status || 'new'}">${lead.lead_status || 'new'}</span></span></div>
             <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: computeLeadScore(lead), data: lead})}</span></div>
             <div class="detail-row"><span class="detail-label">Owner</span><span class="detail-value">${lead.owner_name || '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Owner Phone</span><span class="detail-value">${lead.owner_phone ? `<a href="tel:${lead.owner_phone}" class="text-accent-600 hover:underline">${lead.owner_phone}</a>` : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Owner Email</span><span class="detail-value">${lead.owner_email ? `<a href="mailto:${lead.owner_email}" class="text-accent-600 hover:underline">${lead.owner_email}</a>` : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor</span><span class="detail-value">${lead.contractor_name || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Contractor Phone</span><span class="detail-value">${lead.contractor_phone ? `<a href="tel:${lead.contractor_phone}" class="text-accent-600 hover:underline">${lead.contractor_phone}</a>` : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Source</span><span class="detail-value">${formatSourceName(lead.source_name)}</span></div>
@@ -1802,6 +1804,18 @@ function initHistoricalGrid() {
         {
             field: 'contractor_name', headerName: 'Contractor',
             width: 160, minWidth: 130,
+        },
+        {
+            field: 'contractor_phone', headerName: 'Contractor Phone',
+            width: 140, minWidth: 120, hide: true,
+        },
+        {
+            field: 'owner_phone', headerName: 'Owner Phone',
+            width: 140, minWidth: 120, hide: true,
+        },
+        {
+            field: 'owner_email', headerName: 'Owner Email',
+            width: 180, minWidth: 140, hide: true,
         },
         {
             field: 'lead_status', headerName: 'Status',
