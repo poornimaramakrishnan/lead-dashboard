@@ -1239,7 +1239,7 @@ function exportCSV() {
         leadGridApi.exportDataAsCsv({
             fileName: `tree-permits-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
         });
         showToast('CSV exported');
     }
@@ -1257,7 +1257,7 @@ function exportSelected() {
         fileName: `tree-permits-selected-${new Date().toISOString().slice(0,10)}.csv`,
         onlySelected: true,
         suppressBOM: true,
-        columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
+        columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
     });
 
     // Mark as exported in db
@@ -1278,7 +1278,7 @@ function exportHistoricalCSV() {
         historicalGridApi.exportDataAsCsv({
             fileName: `tree-permits-historical-${new Date().toISOString().slice(0,10)}.csv`,
             suppressBOM: true,
-            columnKeys: ['address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','owner_name','owner_phone','owner_email','contractor_name','contractor_phone','source_url'],
+            columnKeys: ['owner_name','owner_phone','owner_email','address','permit_type','permit_description','permit_number','permit_date','jurisdiction','source_name','lead_score','lead_status','contractor_name','contractor_phone','source_url'],
         });
         showToast('Historical CSV exported');
     }
