@@ -317,8 +317,27 @@ select.filter-input {
 [data-theme="dark"] .row-action-reject { background: #dc2626; color: #ffffff; border-color: #ef4444; }
 
 /* ── New lead row highlight ─────────────────────────────── */
-.lead-new { border-left: 3px solid #059669 !important; }
-[data-theme="dark"] .lead-new { border-left-color: #34d399 !important; }
+/* Use inset box-shadow instead of border-left so it doesn't shift cell widths */
+.lead-new { box-shadow: inset 3px 0 0 #059669 !important; }
+[data-theme="dark"] .lead-new { box-shadow: inset 3px 0 0 #34d399 !important; }
+
+/* ── Checkbox column — always centered regardless of row state ── */
+.ag-theme-custom .ag-cell[col-id="0"] {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+.ag-theme-custom .ag-header-cell[col-id="0"] {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 !important;
+}
+.ag-theme-custom .ag-cell[col-id="0"] .ag-cell-wrapper,
+.ag-theme-custom .ag-cell[col-id="0"] .ag-selection-checkbox {
+    margin: 0 auto !important;
+}
 
 /* ── Status Badges ──────────────────────────────────────── */
 .status-badge {
