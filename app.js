@@ -871,7 +871,10 @@ function initLeadGrid() {
         onRowDoubleClicked: (e) => openDetail(e.data),
         isExternalFilterPresent: () => true,
         doesExternalFilterPass: doesFilterPass,
-        onFirstDataRendered: () => _injectScoreInfoBtn(gridDiv),
+        onFirstDataRendered: () => {
+            _injectScoreInfoBtn(gridDiv);
+            applyColumnPrefs();
+        },
     };
 
     const gridDiv = document.getElementById('leadGrid');
@@ -1306,6 +1309,130 @@ function exportHistoricalCSV() {
         });
         showToast('Historical CSV exported');
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  Column Visibility — Show/Hide columns on Lead List (persisted)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Toggleable columns: field → user-friendly label.
+ * Checkbox, Score, Actions are always visible (not toggleable).
+ */
+const TOGGLEABLE_COLUMNS = [
+    { field: 'owner_name',        label: 'Owner' },
+    { field: 'address',           label: 'Address' },
+    { field: 'owner_phone',       label: 'Owner Phone' },
+    { field: 'owner_email',       label: 'Owner Email' },
+    { field: 'permit_type',       label: 'Permit Type' },
+    { field: 'permit_description',label: 'Description' },
+    { field: 'permit_date',       label: 'Date' },
+    { field: 'jurisdiction',      label: 'Jurisdiction' },
+    { field: 'source_name',       label: 'Source' },
+    { field: 'contractor_name',   label: 'Contractor' },
+    { field: 'contractor_phone',  label: 'Contr. Phone' },
+    { field: 'lead_status',       label: 'Status' },
+];
+
+const COL_PREFS_KEY = 'leadColumnVisibility';
+
+/** Load saved visibility prefs from localStorage (default: all visible). */
+function _loadColumnPrefs() {
+    try {
+        const raw = localStorage.getItem(COL_PREFS_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) { /* corrupt — fall through to defaults */ }
+    return null;
+}
+
+/** Persist current visibility map to localStorage. */
+function _saveColumnPrefs(prefs) {
+    localStorage.setItem(COL_PREFS_KEY, JSON.stringify(prefs));
+}
+
+/** Get current visibility map: { field: true/false }. */
+function _currentColumnPrefs() {
+    const saved = _loadColumnPrefs();
+    if (saved) return saved;
+    // Default: all visible
+    const prefs = {};
+    TOGGLEABLE_COLUMNS.forEach(c => { prefs[c.field] = true; });
+    return prefs;
+}
+
+/** Apply saved column prefs to the AG Grid (call after grid init). */
+function applyColumnPrefs() {
+    if (!leadGridApi) return;
+    const prefs = _currentColumnPrefs();
+    TOGGLEABLE_COLUMNS.forEach(({ field }) => {
+        const visible = prefs[field] !== false;
+        leadGridApi.setColumnsVisible([field], visible);
+    });
+}
+
+/** Build the checkbox panel innerHTML. */
+function _renderColumnPanel() {
+    const panel = document.getElementById('colPanel');
+    if (!panel) return;
+    const prefs = _currentColumnPrefs();
+    const visibleCount = TOGGLEABLE_COLUMNS.filter(c => prefs[c.field] !== false).length;
+
+    let html = `<div class="col-panel-header">
+        <span>Columns (${visibleCount}/${TOGGLEABLE_COLUMNS.length})</span>
+        <button class="col-panel-reset" onclick="resetColumnPrefs()" title="Show all columns">Show All</button>
+    </div>`;
+
+    TOGGLEABLE_COLUMNS.forEach(({ field, label }) => {
+        const checked = prefs[field] !== false ? 'checked' : '';
+        html += `<label class="col-panel-item" role="menuitemcheckbox" aria-checked="${prefs[field] !== false}">
+            <input type="checkbox" ${checked} onchange="onColumnToggle('${field}', this.checked)">
+            <span class="col-label">${label}</span>
+        </label>`;
+    });
+
+    panel.innerHTML = html;
+}
+
+/** Toggle the column panel open/closed. */
+function toggleColumnPanel() {
+    const panel = document.getElementById('colPanel');
+    const btn = document.getElementById('colToggleBtn');
+    if (!panel) return;
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    if (btn) btn.setAttribute('aria-expanded', opening);
+    if (opening) _renderColumnPanel();
+}
+
+/** Close panel when clicking outside. */
+document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('colToggleWrap');
+    const panel = document.getElementById('colPanel');
+    if (panel && wrap && !wrap.contains(e.target)) {
+        panel.classList.remove('open');
+        const btn = document.getElementById('colToggleBtn');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+    }
+});
+
+/** Handle a single column toggle. */
+function onColumnToggle(field, visible) {
+    const prefs = _currentColumnPrefs();
+    prefs[field] = visible;
+    _saveColumnPrefs(prefs);
+    if (leadGridApi) leadGridApi.setColumnsVisible([field], visible);
+    // Update counter in header
+    _renderColumnPanel();
+}
+
+/** Reset all columns to visible. */
+function resetColumnPrefs() {
+    const prefs = {};
+    TOGGLEABLE_COLUMNS.forEach(c => { prefs[c.field] = true; });
+    _saveColumnPrefs(prefs);
+    applyColumnPrefs();
+    _renderColumnPanel();
+    showToast('All columns visible', 'info');
 }
 
 // ── Detail Modal ───────────────────────────────────────────────────────

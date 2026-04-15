@@ -282,10 +282,20 @@
                         Reject Selected
                     </button>
                 </div>
-                <button onclick="exportCSV()" class="btn-action btn-action-primary">
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    Export CSV
-                </button>
+                <div class="flex items-center gap-2">
+                    <!-- Column Visibility Toggle -->
+                    <div class="col-toggle-wrap" id="colToggleWrap">
+                        <button onclick="toggleColumnPanel()" class="btn-action btn-action-secondary" id="colToggleBtn" aria-haspopup="true" aria-expanded="false" title="Show / hide columns">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
+                            Columns
+                        </button>
+                        <div class="col-panel" id="colPanel" role="menu" aria-label="Toggle columns"></div>
+                    </div>
+                    <button onclick="exportCSV()" class="btn-action btn-action-primary">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        Export CSV
+                    </button>
+                </div>
             </div>
 
             <!-- AG Grid -->

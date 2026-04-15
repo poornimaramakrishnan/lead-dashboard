@@ -135,6 +135,76 @@
 .btn-action-reject:hover { background: #fecaca; }
 [data-theme="dark"] .btn-action-reject { background: rgba(153,27,27,0.2); color: #f87171; }
 
+/* ── Column Visibility Panel ────────────────────────────── */
+.col-toggle-wrap { position: relative; }
+
+.col-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 50;
+    min-width: 220px;
+    max-height: 420px;
+    overflow-y: auto;
+    display: none;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,.1), 0 4px 10px -5px rgba(0,0,0,.05);
+    padding: 6px 0;
+    animation: colPanelIn .15s ease;
+}
+.col-panel.open { display: block; }
+
+@keyframes colPanelIn {
+    from { opacity: 0; transform: translateY(-6px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.col-panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px 6px; border-bottom: 1px solid #f3f4f6;
+    margin-bottom: 2px;
+}
+.col-panel-header span {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: #9ca3af;
+}
+.col-panel-reset {
+    font-size: 11px; font-weight: 600; color: #059669; cursor: pointer;
+    background: none; border: none; padding: 2px 6px; border-radius: 6px;
+    transition: background .15s;
+}
+.col-panel-reset:hover { background: #ecfdf5; }
+
+.col-panel-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 14px; cursor: pointer; transition: background .1s;
+    font-size: 13px; color: #374151; user-select: none;
+}
+.col-panel-item:hover { background: #f9fafb; }
+.col-panel-item:active { background: #f3f4f6; }
+
+.col-panel-item input[type="checkbox"] {
+    width: 16px; height: 16px; accent-color: #059669;
+    border-radius: 4px; cursor: pointer; flex-shrink: 0;
+}
+
+.col-panel-item .col-label { flex: 1; line-height: 1.3; }
+
+/* Dark mode */
+[data-theme="dark"] .col-panel {
+    background: #1f2937; border-color: #374151;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,.4);
+}
+[data-theme="dark"] .col-panel-header { border-bottom-color: #374151; }
+[data-theme="dark"] .col-panel-header span { color: #6b7280; }
+[data-theme="dark"] .col-panel-reset { color: #34d399; }
+[data-theme="dark"] .col-panel-reset:hover { background: rgba(52,211,153,.1); }
+[data-theme="dark"] .col-panel-item { color: #e5e7eb; }
+[data-theme="dark"] .col-panel-item:hover { background: #374151; }
+[data-theme="dark"] .col-panel-item:active { background: #4b5563; }
+
 /* ── AG Grid Custom Theme ───────────────────────────────── */
 .ag-theme-custom {
     --ag-font-family: 'Inter', system-ui, -apple-system, sans-serif;
