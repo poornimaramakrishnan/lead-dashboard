@@ -329,21 +329,28 @@ select.filter-input {
     padding: 0 !important;
 }
 .ag-theme-custom .ag-header-cell[col-id="0"] {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    position: relative !important;
     padding: 0 !important;
 }
 .ag-theme-custom .ag-cell[col-id="0"] .ag-cell-wrapper,
 .ag-theme-custom .ag-cell[col-id="0"] .ag-selection-checkbox {
     margin: 0 auto !important;
 }
-.ag-theme-custom .ag-header-cell[col-id="0"] .ag-header-cell-comp-wrapper,
+/* Position the header select-all checkbox dead-center in its cell */
 .ag-theme-custom .ag-header-cell[col-id="0"] .ag-header-select-all {
-    margin: 0 auto !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
+    margin: 0 !important;
+}
+/* Collapse the empty label wrapper so it doesn't shift layout */
+.ag-theme-custom .ag-header-cell[col-id="0"] .ag-header-cell-comp-wrapper {
+    display: none !important;
 }
 
 /* ── Status Badges ──────────────────────────────────────── */
