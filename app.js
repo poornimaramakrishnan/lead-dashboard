@@ -12,9 +12,9 @@
 //                   Also set DASHBOARD_URL GitHub variable to:
 //                   https://<github-username>.github.io/<dashboard-repo>/
 const CONFIG = {
-    SUPABASE_URL: '{{SUPABASE_URL}}',
-    SUPABASE_KEY: '{{SUPABASE_KEY}}',
-    WORKER_URL: '{{WORKER_URL}}',
+    SUPABASE_URL: 'https://jfvkumjshrtiazitlidx.supabase.co',
+    SUPABASE_KEY: 'sb_publishable_8lkctRFvWQgIWdVFBLFsaQ_Ds0xgkwQ',
+    WORKER_URL: 'https://lead-pipeline-api.tree-permit-lead-pipeline.workers.dev',
 };
 
 // ── Supabase Client ────────────────────────────────────────────────────
