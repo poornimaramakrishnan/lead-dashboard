@@ -1126,8 +1126,23 @@ const _SOURCE_GEO_SUFFIX = {
     city_of_miami: 'Miami, FL',
     city_of_miami_tree: 'Miami, FL',
     fort_lauderdale: 'Fort Lauderdale, FL',
+    fort_lauderdale_accela: 'Fort Lauderdale, FL',
     miami_dade_derm: 'Miami-Dade County, FL',
 };
+
+// ── Source aliases ────────────────────────────────────────────────────
+// Folds physically-distinct source_name values into a single canonical bucket
+// for grouping, filtering, and display. Keeps the underlying DB rows separate
+// (so the rollback story stays clean) while presenting one tile per city.
+const _SOURCE_ALIASES = {
+    fort_lauderdale_accela: 'fort_lauderdale',
+};
+
+/** Return the canonical/display source key for a raw source_name. */
+function canonicalSource(name) {
+    if (!name) return name;
+    return _SOURCE_ALIASES[name] || name;
+}
 
 function googleMapsUrl(address, sourceName) {
     const addr = (address || '').trim();
@@ -1161,6 +1176,7 @@ function formatSourceName(name) {
         'miami_dade_derm': 'Miami-Dade DERM',
         'derm_tree': 'DERM Tree Permits',
         'fort_lauderdale': 'Fort Lauderdale',
+        'fort_lauderdale_accela': 'Fort Lauderdale',
         'city_of_miami': 'City of Miami',
         'city_of_miami_tree': 'Miami Tree Permits',
     };
@@ -1758,14 +1774,16 @@ function renderTimelineChart() {
     const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
     const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6' };
 
-    // Group by ISO week AND source
+    // Group by ISO week AND CANONICAL source (so aliases roll up into the
+    // same stacked-bar segment as their parent — e.g. fort_lauderdale_accela
+    // counts toward fort_lauderdale).
     const byWeekSrc = {};  // { weekStart: { source: count } }
     recentLeads.forEach(l => {
         const d = l.permit_date ? l.permit_date.slice(0, 10) : null;
         if (!d || d < cutoffStr) return;
         const weekStart = getWeekStart(d);
         if (!byWeekSrc[weekStart]) byWeekSrc[weekStart] = {};
-        const src = l.source_name || 'unknown';
+        const src = canonicalSource(l.source_name) || 'unknown';
         byWeekSrc[weekStart][src] = (byWeekSrc[weekStart][src] || 0) + 1;
     });
 
@@ -1856,7 +1874,7 @@ function renderFreshnessChart() {
     SOURCE_ORDER.forEach(s => { bySrc[s] = {}; AGE_BUCKETS.forEach(b => bySrc[s][b.key] = 0); });
 
     recentLeads.forEach(l => {
-        const src = l.source_name || 'unknown';
+        const src = canonicalSource(l.source_name) || 'unknown';
         if (!bySrc[src]) return;
         const pd = l.permit_date ? new Date(l.permit_date) : null;
         if (!pd || isNaN(pd)) return;
@@ -2204,7 +2222,8 @@ function initHistoricalGrid() {
         isExternalFilterPresent: () => !!historicalSourceFilter,
         doesExternalFilterPass: (node) => {
             if (!historicalSourceFilter) return true;
-            return node.data && node.data.source_name === historicalSourceFilter;
+            if (!node.data) return false;
+            return canonicalSource(node.data.source_name) === historicalSourceFilter;
         },
         onFirstDataRendered: () => _injectScoreInfoBtn(gridDiv),
     };
@@ -2233,11 +2252,12 @@ function renderHistoricalCards() {
         city_of_miami:      '🏙️',
     };
 
-    // Count leads per source
+    // Count leads per CANONICAL source (folds aliases like fort_lauderdale_accela
+    // into the parent fort_lauderdale bucket so both render under one tile).
     const counts = {};
     let totalCount = allLeads.length;
     allLeads.forEach(l => {
-        const src = l.source_name || 'unknown';
+        const src = canonicalSource(l.source_name) || 'unknown';
         counts[src] = (counts[src] || 0) + 1;
     });
 
