@@ -1129,6 +1129,10 @@ const _SOURCE_GEO_SUFFIX = {
     fort_lauderdale: 'Fort Lauderdale, FL',
     fort_lauderdale_accela: 'Fort Lauderdale, FL',
     miami_dade_derm: 'Miami-Dade County, FL',
+    palm_beach_county: 'Palm Beach County, FL',
+    collier_county: 'Collier County, FL',
+    jupiter: 'Jupiter, FL',
+    naples: 'Naples, FL',
 };
 
 // ── Source aliases ────────────────────────────────────────────────────
@@ -1180,6 +1184,10 @@ function formatSourceName(name) {
         'fort_lauderdale_accela': 'Fort Lauderdale',
         'city_of_miami': 'City of Miami',
         'city_of_miami_tree': 'Miami Tree Permits',
+        'palm_beach_county': 'Palm Beach County',
+        'collier_county': 'Collier County',
+        'jupiter': 'Town of Jupiter',
+        'naples': 'City of Naples',
     };
     return map[name] || name || '—';
 }
@@ -1774,8 +1782,8 @@ function renderTimelineChart() {
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
     // Source order & colors — consistent across all charts
-    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
-    const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6' };
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
+    const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6', palm_beach_county: '#dc2626', collier_county: '#06b6d4', jupiter: '#a855f7', naples: '#84cc16' };
 
     // Group by ISO week AND CANONICAL source (so aliases roll up into the
     // same stacked-bar segment as their parent — e.g. fort_lauderdale_accela
@@ -1864,7 +1872,7 @@ function renderFreshnessChart() {
     const ctx = document.getElementById('freshnessChart');
     if (!ctx) return;
 
-    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
     const AGE_BUCKETS = [
         { key: '0-30d',   label: '< 30 days',  max: 30,  color: '#22c55e' },
         { key: '31-90d',  label: '31-90 days',  max: 90,  color: '#fbbf24' },
@@ -2248,12 +2256,16 @@ function renderHistoricalCards() {
     const container = document.getElementById('historicalCards');
     if (!container) return;
 
-    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
     const sourceIcons = {
         miami_dade_derm:    '🌿',
         fort_lauderdale:    '🏖️',
         city_of_miami_tree: '🌴',
         city_of_miami:      '🏙️',
+        palm_beach_county:  '🌳',
+        collier_county:     '🌊',
+        jupiter:            '🛥️',
+        naples:             '⛵',
     };
 
     // Count leads per CANONICAL source (folds aliases like fort_lauderdale_accela
@@ -2353,12 +2365,16 @@ function initHealthGrid() {
 
 function renderHealthCards(runs) {
     const sources = {};
-    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami'];
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
     const sourceIcons = {
         miami_dade_derm:    '🌿',
         fort_lauderdale:    '🏖️',
         city_of_miami_tree: '🌴',
         city_of_miami:      '🏙️',
+        palm_beach_county:  '🌳',
+        collier_county:     '🌊',
+        jupiter:            '🛥️',
+        naples:             '⛵',
     };
 
     runs.forEach(run => {

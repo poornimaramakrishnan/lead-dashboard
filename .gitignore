@@ -92,6 +92,10 @@ Source_Expansion_Analysis*.pdf
 _INTERNAL_*.md
 _INTERNAL_*.html
 _INTERNAL_*.pdf
+# Local probe / scratch artifacts (never publish)
+_*.json
+_*.html
+_*.txt
 *.pdf
 *.png
 *.jpg
