@@ -819,9 +819,10 @@ function initLeadGrid() {
             valueFormatter: (p) => p.value || '—',
         },
         {
-            field: 'permit_date', headerName: 'Date',
-            width: 100, minWidth: 90,
-            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
+            field: 'permit_date', headerName: 'Permit Date',
+            width: 115, minWidth: 100,
+            headerTooltip: 'The date the city issued the permit (source: city permit records)',
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—',
         },
         {
             field: 'jurisdiction', headerName: 'Jurisdiction',
@@ -1194,8 +1195,10 @@ function doesFilterPass(node) {
     const status = document.getElementById('filterStatus').value;
     const minScore = document.getElementById('filterMinScore').value;
 
-    if (dateFrom && data.permit_date && data.permit_date < dateFrom) return false;
-    if (dateTo && data.permit_date && data.permit_date > dateTo) return false;
+    // Use only the YYYY-MM-DD portion for robust string comparison regardless of any time component
+    const permitDate = data.permit_date ? String(data.permit_date).slice(0, 10) : null;
+    if (dateFrom && permitDate && permitDate < dateFrom) return false;
+    if (dateTo && permitDate && (permitDate > dateTo)) return false;
     if (jurisdiction && data.jurisdiction !== jurisdiction) return false;
     if (status && data.lead_status !== status) return false;
     if (minScore && computeLeadScore(data) < parseInt(minScore)) return false;
@@ -1618,7 +1621,7 @@ function openDetail(lead) {
             <div class="detail-row"><span class="detail-label">Permit Type</span><span class="detail-value">${lead.permit_type || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Description</span><span class="detail-value">${lead.permit_description || '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Permit #</span><span class="detail-value font-mono">${lead.permit_number || '—'}</span></div>
-            <div class="detail-row"><span class="detail-label">Permit Date</span><span class="detail-value">${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</span></div>
+            <div class="detail-row"><span class="detail-label">Permit Date</span><span class="detail-value">${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</span></div>
             <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value"><span class="status-badge status-${lead.lead_status || 'new'}">${lead.lead_status || 'new'}</span></span></div>
             <div class="detail-row"><span class="detail-label">Score</span><span class="detail-value">${scoreRenderer({value: computeLeadScore(lead), data: lead})}</span></div>
             <div class="detail-row"><span class="detail-label">Owner</span><span class="detail-value">${lead.owner_name || '—'}</span></div>
@@ -1996,7 +1999,7 @@ function renderRecentLeads() {
                         <span class="font-medium text-sm truncate">${lead.address || '—'}</span>
                         ${isNew ? '<span class="badge-new">New</span>' : ''}
                     </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${lead.permit_type || '—'} · ${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${lead.permit_type || '—'} · ${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</p>
                 </div>
                 ${scoreRenderer({value: computeLeadScore(lead), data: lead})}
             </div>
@@ -2029,7 +2032,7 @@ function renderHotLeads() {
                         <span class="font-medium text-sm truncate">${lead.address || '—'}</span>
                         ${isNew ? '<span class="badge-new">New</span>' : ''}
                     </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString() : '—'}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${formatSourceName(lead.source_name)} · ${lead.permit_date ? new Date(lead.permit_date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—'}</p>
                 </div>
                 ${scoreRenderer({value: computeLeadScore(lead), data: lead})}
             </div>
@@ -2173,9 +2176,10 @@ function initHistoricalGrid() {
             cellStyle: { fontFamily: 'JetBrains Mono, monospace', fontSize: '11px' },
         },
         {
-            field: 'permit_date', headerName: 'Date',
-            width: 100, minWidth: 90,
-            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString() : '—',
+            field: 'permit_date', headerName: 'Permit Date',
+            width: 115, minWidth: 100,
+            headerTooltip: 'The date the city issued the permit (source: city permit records)',
+            valueFormatter: (p) => p.value ? new Date(p.value).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '—',
         },
         {
             field: 'permit_status', headerName: 'Permit Status',
