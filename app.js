@@ -1149,7 +1149,7 @@ const _SOURCE_ALIASES = {
 
 // Sources hidden from System Health and Historical Data tiles per Amy 2026-05-14.
 // Underlying DB rows untouched; only UI suppression.
-const HIDDEN_SOURCES = new Set(['palm_beach_county', 'collier_county', 'jupiter', 'naples']);
+const HIDDEN_SOURCES = new Set(['palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach', 'west_palm_beach', 'doral']);
 
 function isHiddenSource(name) {
     if (!name) return false;
