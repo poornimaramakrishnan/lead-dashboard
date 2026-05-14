@@ -1133,6 +1133,10 @@ const _SOURCE_GEO_SUFFIX = {
     collier_county: 'Collier County, FL',
     jupiter: 'Jupiter, FL',
     naples: 'Naples, FL',
+    coral_gables: 'Coral Gables, FL',
+    hallandale_beach: 'Hallandale Beach, FL',
+    west_palm_beach: 'West Palm Beach, FL',
+    doral: 'Doral, FL',
 };
 
 // ── Source aliases ────────────────────────────────────────────────────
@@ -1188,6 +1192,10 @@ function formatSourceName(name) {
         'collier_county': 'Collier County',
         'jupiter': 'Town of Jupiter',
         'naples': 'City of Naples',
+        'coral_gables': 'Coral Gables',
+        'hallandale_beach': 'Hallandale Beach',
+        'west_palm_beach': 'West Palm Beach',
+        'doral': 'Doral',
     };
     return map[name] || name || '—';
 }
@@ -2256,7 +2264,7 @@ function renderHistoricalCards() {
     const container = document.getElementById('historicalCards');
     if (!container) return;
 
-    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach', 'west_palm_beach', 'doral'];
     const sourceIcons = {
         miami_dade_derm:    '🌿',
         fort_lauderdale:    '🏖️',
@@ -2266,6 +2274,10 @@ function renderHistoricalCards() {
         collier_county:     '🌊',
         jupiter:            '🛥️',
         naples:             '⛵',
+        coral_gables:       '🌺',
+        hallandale_beach:   '🏖️',
+        west_palm_beach:    '🌴',
+        doral:              '🏙️',
     };
 
     // Count leads per CANONICAL source (folds aliases like fort_lauderdale_accela
@@ -2365,7 +2377,7 @@ function initHealthGrid() {
 
 function renderHealthCards(runs) {
     const sources = {};
-    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'];
+    const sourceOrder = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach', 'west_palm_beach', 'doral'];
     const sourceIcons = {
         miami_dade_derm:    '🌿',
         fort_lauderdale:    '🏖️',
@@ -2375,6 +2387,10 @@ function renderHealthCards(runs) {
         collier_county:     '🌊',
         jupiter:            '🛥️',
         naples:             '⛵',
+        coral_gables:       '🌺',
+        hallandale_beach:   '🏖️',
+        west_palm_beach:    '🌴',
+        doral:              '🏙️',
     };
 
     runs.forEach(run => {
