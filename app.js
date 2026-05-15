@@ -1149,7 +1149,10 @@ const _SOURCE_ALIASES = {
 
 // Sources hidden from System Health and Historical Data tiles per Amy 2026-05-14.
 // Underlying DB rows untouched; only UI suppression.
-const HIDDEN_SOURCES = new Set(['palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach', 'west_palm_beach', 'doral']);
+// Sources hidden from System Health and Historical Data tiles per Amy 2026-05-14.
+// Underlying DB rows untouched — only UI suppression. Contracted sources
+// (coral_gables, hallandale_beach) are intentionally excluded from this set.
+const HIDDEN_SOURCES = new Set(['palm_beach_county', 'collier_county', 'jupiter', 'naples', 'west_palm_beach', 'doral', 'boca_raton', 'miami_gardens', 'oakland_park', 'wellington', 'miramar', 'pembroke_pines']);
 
 function isHiddenSource(name) {
     if (!name) return false;
@@ -1799,8 +1802,8 @@ function renderTimelineChart() {
     const cutoffStr = cutoff.toISOString().slice(0, 10);
 
     // Source order & colors — consistent across all charts
-    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'].filter(s => !HIDDEN_SOURCES.has(s));
-    const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6', palm_beach_county: '#dc2626', collier_county: '#06b6d4', jupiter: '#a855f7', naples: '#84cc16' };
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach'].filter(s => !HIDDEN_SOURCES.has(s));
+    const SOURCE_COLORS = { miami_dade_derm: '#059669', fort_lauderdale: '#3b82f6', city_of_miami_tree: '#f59e0b', city_of_miami: '#8b5cf6', palm_beach_county: '#dc2626', collier_county: '#06b6d4', jupiter: '#a855f7', naples: '#84cc16', coral_gables: '#0ea5e9', hallandale_beach: '#f43f5e' };
 
     // Group by ISO week AND CANONICAL source (so aliases roll up into the
     // same stacked-bar segment as their parent — e.g. fort_lauderdale_accela
@@ -1889,7 +1892,7 @@ function renderFreshnessChart() {
     const ctx = document.getElementById('freshnessChart');
     if (!ctx) return;
 
-    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples'].filter(s => !HIDDEN_SOURCES.has(s));
+    const SOURCE_ORDER = ['miami_dade_derm', 'fort_lauderdale', 'city_of_miami_tree', 'city_of_miami', 'palm_beach_county', 'collier_county', 'jupiter', 'naples', 'coral_gables', 'hallandale_beach'].filter(s => !HIDDEN_SOURCES.has(s));
     const AGE_BUCKETS = [
         { key: '0-30d',   label: '< 30 days',  max: 30,  color: '#22c55e' },
         { key: '31-90d',  label: '31-90 days',  max: 90,  color: '#fbbf24' },
