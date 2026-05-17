@@ -409,6 +409,11 @@ function isDark() {
 async function loadData(isRefresh = false) {
     try {
         await Promise.all([loadLeads(), loadJobRuns(), loadScoringRules()]);
+        // Re-render health cards once BOTH leads and job-runs are loaded so
+        // "Total Leads" reflects actual DB counts instead of showing 0.
+        // (loadJobRuns completes first and renders cards immediately; leads
+        //  load slower — this final pass corrects the race condition.)
+        if (allJobRuns.length > 0) renderHealthCards(allJobRuns);
     } catch (err) {
         console.error('loadData error:', err);
         try { loadDemoData(); } catch(e) { console.error('Demo leads failed:', e); }
@@ -575,7 +580,7 @@ async function loadJobRuns() {
             .from('job_runs')
             .select('*')
             .order('started_at', { ascending: false })
-            .limit(50);
+            .limit(500);
 
         if (error) throw error;
 
