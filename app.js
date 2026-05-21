@@ -375,6 +375,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadData().finally(() => clearTimeout(spinnerTimer));
 
+    // ── Silent background auto-refresh every 5 minutes ───────────────────
+    // Eliminates the "no new leads" problem where Mirko has to Ctrl+R to
+    // see leads that arrived since he opened the page.  Runs silently in the
+    // background — no spinner, no tab switch — so it doesn't interrupt work.
+    const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+    setInterval(() => {
+        // Only refresh when the tab is visible (avoids unnecessary API calls)
+        if (document.visibilityState === 'visible') {
+            loadData(true).catch(err => console.warn('Auto-refresh error:', err));
+        }
+    }, AUTO_REFRESH_MS);
+
     // Wire up global search
     const searchInput = document.getElementById('globalSearch');
     if (searchInput) {
