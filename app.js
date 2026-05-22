@@ -60,6 +60,7 @@ const SCORING_DEFAULTS = {
     parcel_acres_threshold: 0.50,
     right_of_way_bonus: 1,
     contact_info_bonus: 1,
+    missing_contact_penalty: 2,
     derm_tier1_days_min: 1,
     derm_tier1_days_max: 10,
     derm_tier1_bonus: 1,
@@ -75,6 +76,9 @@ const SCORING_DEFAULTS = {
     corrections_required_penalty: 2,
     staleness_penalty: 1,
     staleness_days_threshold: 365,
+    unaddressable_lead_penalty: 4,
+    government_owner_penalty: 5,
+    government_owner_score_cap: 1,
 };
 // Rule metadata: [min, max, step, isDecimal]
 const SCORING_META = {
@@ -93,6 +97,7 @@ const SCORING_META = {
     parcel_acres_threshold:          [0.10, 50.00, 0.10, true],
     right_of_way_bonus:              [0, 10, 1, false],
     contact_info_bonus:              [0, 10, 1, false],
+    missing_contact_penalty:         [0, 10, 1, false],
     derm_tier1_days_min:             [0, 365, 1, false],
     derm_tier1_days_max:             [1, 365, 1, false],
     derm_tier1_bonus:                [0, 10, 1, false],
@@ -108,9 +113,13 @@ const SCORING_META = {
     corrections_required_penalty:    [0, 10, 1, false],
     staleness_penalty:               [0, 10, 1, false],
     staleness_days_threshold:        [1, 730, 1, false],
+    unaddressable_lead_penalty:      [0, 10, 1, false],
+    government_owner_penalty:        [0, 10, 1, false],
+    government_owner_score_cap:      [0, 10, 1, false],
 };
 let scoringRules = { ...SCORING_DEFAULTS };
 let scoringRulesDirty = false;
+let scoringRuleColumns = new Set();
 
 // ── Authentication State ───────────────────────────────────────────────
 let isAuthenticated = false;
@@ -934,7 +943,9 @@ function _buildScorePopoverHTML() {
         +${r.right_of_way_bonus} pt&nbsp; — Right-of-way permit<br>
         −${r.intended_decision_penalty} pt&nbsp; — "Intended Decision" status (City of Miami Tree)<br>
         −${r.contractor_penalty} pts — Contractor already assigned (Partnership Opp.)<br>
-        −${r.derm_no_address_penalty} pts — DERM permit with no address
+        −${r.derm_no_address_penalty} pts — DERM permit with no address<br>
+        −${r.missing_contact_penalty} pts — Known owner has no phone/email<br>
+        −${r.government_owner_penalty} pts and cap ${r.government_owner_score_cap} — Government / municipal owner
     </div>
 </div>`;
 }
@@ -1028,9 +1039,12 @@ function computeLeadScore(lead) {
     const LANDSCAPE_TYPES = new Set(['LANDSCAPE INSTALLATION PERMIT', 'ROW LANDSCAPING PERMIT']);
     const ROW_KEYWORDS = ['right of way', 'right-of-way', 'row ', 'r.o.w.'];
     const DERM_SOURCES = new Set(['miami_dade_derm']);
+    const GOVT_OWNER_RE = /\b(?:CITY OF|COUNTY OF|COUNTY$|STATE OF|TOWN OF|VILLAGE OF|MUNICIPALITY|DEPARTMENT OF|SCHOOL BOARD|SCHOOL DISTRICT|PUBLIC WORKS|WATER MANAGEMENT|FIRE DEPARTMENT|MIAMI-DADE COUNTY|BROWARD COUNTY|PALM BEACH COUNTY|FEDERAL|US GOVERNMENT|US DEPT)\b/i;
+    const MUNICIPAL_PROPERTY_SUBTYPES = ['municipal', 'government', 'public works'];
 
     const ptUpper = (lead.permit_type || '').trim().toUpperCase();
     const descLower = (lead.permit_description || '').toLowerCase();
+    const addrUpper = (lead.address || '').trim().toUpperCase();
 
     let score = 0;
 
@@ -1122,9 +1136,33 @@ function computeLeadScore(lead) {
         score = Math.max(0, score - r.corrections_required_penalty);
     }
 
-    // Contact info bonus (+1 when owner_phone or owner_email is populated)
-    if ((lead.owner_phone || '').trim() || (lead.owner_email || '').trim()) {
-        score += r.contact_info_bonus;
+    // Unaddressable lead penalty (public ROW / common area placeholders)
+    if (addrUpper.startsWith('ADDRESS NOT ASSIGN')) {
+        const pen = r.unaddressable_lead_penalty != null ? r.unaddressable_lead_penalty : 4;
+        score = Math.max(0, score - pen);
+    }
+
+    // Government / municipal owner penalty and final score cap
+    const ownerName = (lead.owner_name || '').trim();
+    const propertyType = (lead.property_type || '').trim().toLowerCase();
+    const isGovt = GOVT_OWNER_RE.test(ownerName) || MUNICIPAL_PROPERTY_SUBTYPES.some(s => propertyType.includes(s));
+    if (isGovt) {
+        const pen = r.government_owner_penalty != null ? r.government_owner_penalty : 5;
+        score = Math.max(0, score - pen);
+    }
+
+    // Contact info modifiers
+    const hasContact = (lead.owner_phone || '').trim() || (lead.owner_email || '').trim();
+    if (hasContact) {
+        score += r.contact_info_bonus || 0;
+    } else if (ownerName) {
+        const pen = r.missing_contact_penalty != null ? r.missing_contact_penalty : 2;
+        score = Math.max(0, score - pen);
+    }
+
+    if (isGovt) {
+        const cap = r.government_owner_score_cap != null ? parseInt(r.government_owner_score_cap, 10) : 1;
+        score = Math.min(score, Number.isFinite(cap) ? cap : 1);
     }
 
     return score;
@@ -2713,6 +2751,7 @@ async function loadScoringRules() {
             .single();
         if (error) throw error;
         if (data) {
+            scoringRuleColumns = new Set(Object.keys(data));
             for (const key of Object.keys(SCORING_DEFAULTS)) {
                 if (data[key] != null) scoringRules[key] = Number(data[key]);
             }
@@ -2888,6 +2927,10 @@ async function saveScoringRules() {
     try {
         const payload = {};
         for (const key of Object.keys(SCORING_DEFAULTS)) {
+            // Older prod DBs may not yet have newly added guardrail columns.
+            // The dashboard/pipeline still use safe defaults for those keys;
+            // skip them on save rather than failing the entire update.
+            if (scoringRuleColumns.size && !scoringRuleColumns.has(key)) continue;
             payload[key] = scoringRules[key];
         }
 
