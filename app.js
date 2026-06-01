@@ -708,7 +708,7 @@ document.addEventListener('click', (e) => {
 
 // ── Refresh with cooldown ──────────────────────────────────────────────
 const REFRESH_COOLDOWN_MS = 30_000; // 30 seconds
-const PIPELINE_COOLDOWN_MS = 15 * 60 * 1000; // 15 minutes
+const PIPELINE_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes (back-to-back protection)
 let lastRefreshAt = 0;
 let refreshCooldownTimer = null;
 
@@ -746,11 +746,16 @@ async function refreshData() {
 
                 if (resp.ok) {
                     localStorage.setItem('lastPipelineTriggerAt', now.toString());
-                    showToast('Pipeline explicitly triggered! New leads will arrive in ~2-5 mins.', 'success', 8000);
+                    showToast('Pipeline explicitly triggered! New leads will arrive in ~5-15 mins.', 'success', 8000);
                 } else {
                     const errText = await resp.text();
-                    console.error('Failed to trigger daily pipeline:', errText);
-                    showToast(`Pipeline trigger failed: ${errText.slice(0, 50)}`, 'error', 8000);
+                    console.error('Failed to trigger daily pipeline:', resp.status, errText);
+                    let userMsg = 'Pipeline trigger failed';
+                    try {
+                        const errJson = JSON.parse(errText);
+                        userMsg = errJson.error || errJson.message || userMsg;
+                    } catch (_) { userMsg = errText.slice(0, 80) || userMsg; }
+                    showToast(`⚠️ ${userMsg}`, 'error', 10000);
                 }
             } catch (err) {
                 console.error('Dispatch trigger error', err);
