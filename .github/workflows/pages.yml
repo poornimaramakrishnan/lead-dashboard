@@ -31,8 +31,6 @@ jobs:
           sed -i "s|{{SUPABASE_URL}}|${{ vars.SUPABASE_URL }}|g" app.js
           sed -i "s|{{SUPABASE_KEY}}|${SUPABASE_KEY}|g" app.js
           sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" app.js
-          sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" docs/user-manual.html
-          sed -i "s|{{WORKER_URL}}|${{ vars.WORKER_URL }}|g" docs/technical-design-document.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
