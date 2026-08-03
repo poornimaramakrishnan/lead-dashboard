@@ -2466,7 +2466,9 @@ function renderHealthCards(runs) {
     };
 
     runs.forEach(run => {
-        const src = run.source_name;
+        // Fold source aliases (e.g. fort_lauderdale_accela → fort_lauderdale) so
+        // the health card keyed by the canonical name in `sourceOrder` matches.
+        const src = canonicalSource(run.source_name);
         if (!sources[src] || new Date(run.started_at) > new Date(sources[src].started_at)) {
             sources[src] = run;
         }
@@ -2475,7 +2477,7 @@ function renderHealthCards(runs) {
     // Count total leads per source from the loaded data
     const leadCounts = {};
     (recentLeads || []).forEach(l => {
-        const s = l.source_name || 'unknown';
+        const s = canonicalSource(l.source_name) || 'unknown';
         leadCounts[s] = (leadCounts[s] || 0) + 1;
     });
 
